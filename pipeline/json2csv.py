@@ -58,6 +58,7 @@ def json_to_csv(json_fp, csv_fp):
                 else:
                     # Replace semicolons in other text to avoid format issues
                     processed_record.append(str(item).replace(';', ','))
+            processed_record[1] = processed_record[1].rstrip('"')
             writer.writerow(processed_record)
 
 # Call the function with the appropriate file paths
