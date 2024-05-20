@@ -7,3 +7,5 @@ curl https://huggingfaceh4-open-llm-leaderboard.hf.space/ > ../process_dir/leade
 
 python3 html2json.py ../process_dir/leaderboard.html ../process_dir/leaderboard.json
 python3 json2csv.py ../process_dir/leaderboard.json ../process_dir/leaderboard.csv
+python3 dedup.py ../process_dir/leaderboard.csv ../process_dir/leaderboard_deduped.csv
+python3 extract_repo_activity.py ../process_dir/leaderboard_deduped.csv ../process_dir/leaderboard_repo_activity.csv
