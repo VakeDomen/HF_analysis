@@ -43,13 +43,13 @@ repo_data = {
 for index, model in tqdm(enumerate(data.iterrows()), total=len(data)):
     model = model[1]
     try:
-      commits = api.list_repo_commits(model['name'])
+      commits = api.list_repo_commits(model['model_name_for_query'])
     except:
         continue
 
     (num_of_authors, authors) = get_num_of_authors(commits)
 
-    repo_data["name"].append(model['name'])
+    repo_data["name"].append(model['model_name_for_query'])
     repo_data["num_of_authors"].append(num_of_authors)
     repo_data["num_of_commits"].append(get_num_of_commits(commits))
     repo_data["first_commit"].append(get_first_commit(commits))
@@ -86,7 +86,7 @@ result_df = authors_df.groupby('author').agg(
 result_df.columns = ['author_name', 'num_of_repos', 'list_of_repos']
 
 # Export to CSV
-result_df.to_csv(output_path, index=False)
+result_df.to_csv(output_path, index=False, sep=";")
 
 
 
