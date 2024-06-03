@@ -8,6 +8,7 @@ import sys
 
 input_path = sys.argv[1]
 output_path = sys.argv[2]
+output_path_commits = sys.argv[3]
 
 data = pd.read_csv(input_path, sep=";")
 
@@ -60,7 +61,7 @@ for index, model in tqdm(enumerate(data.iterrows()), total=len(data)):
 df = pd.DataFrame.from_dict(repo_data)
 df['authors'] = df['authors'].map(set)
 df['authors'] = df['authors'].map(list)
-df.to_csv("commit_data.csv")
+df.to_csv(output_path_commits)
 
 authors = {
     "author": [],
