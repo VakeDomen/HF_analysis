@@ -3,9 +3,10 @@ import pandas as pd
 from tqdm import tqdm
 import sys
 import time
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, login
 api = HfApi()
 
+login()
 
 input_path = sys.argv[1]
 output_path = sys.argv[2]

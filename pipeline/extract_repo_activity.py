@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 import time
 import ast 
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, login
 import sys
 
 input_path = sys.argv[1]
@@ -13,6 +13,7 @@ output_path_commits = sys.argv[3]
 data = pd.read_csv(input_path, sep=";")
 
 api = HfApi()
+login()
 
 def get_num_of_authors(commits):
     authors = []
