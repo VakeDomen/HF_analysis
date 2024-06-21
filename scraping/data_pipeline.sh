@@ -1,14 +1,14 @@
 #!/bin/bash
 
-rm -r ../process_dir
-mkdir ../process_dir
-# curl https://huggingfaceh4-open-llm-leaderboard.hf.space/ > ../process_dir/leaderboard.html
+rm -r ../data
+mkdir ../data
+# curl https://huggingfaceh4-open-llm-leaderboard.hf.space/ > ../data/leaderboard.html
 
-curl https://open-llm-leaderboard-open-llm-leaderboard.hf.space/?__theme=light > ../process_dir/leaderboard.html
-python3 html2json.py ../process_dir/leaderboard.html ../process_dir/leaderboard.json
-python3 json2csv.py ../process_dir/leaderboard.json ../process_dir/leaderboard.csv
-python3 dedup.py ../process_dir/leaderboard.csv ../process_dir/leaderboard_deduped.csv
-python3 extract_repo_activity.py ../process_dir/leaderboard_deduped.csv ../process_dir/leaderboard_repo_activity.csv ../process_dir/leaderboard_commit_data.csv
-python3 extract_repo_details.py ../process_dir/leaderboard.json ../process_dir/leaderboard_repo_detailes.csv
-python3 extract_base_models.py ../process_dir/leaderboard_repo_detailes.csv ../process_dir/leaderboard_base_models.csv
-python3 extract_datasets.py ../process_dir/leaderboard_repo_detailes.csv ../process_dir/leaderboard_datasets.csv
+curl https://open-llm-leaderboard-open-llm-leaderboard.hf.space/?__theme=light > ../data/leaderboard.html
+python3 html2json.py ../data/leaderboard.html ../data/leaderboard.json
+python3 json2csv.py ../data/leaderboard.json ../data/leaderboard.csv
+python3 dedup.py ../data/leaderboard.csv ../data/leaderboard_deduped.csv
+python3 extract_repo_activity.py ../data/leaderboard_deduped.csv ../data/leaderboard_repo_activity.csv ../data/leaderboard_commit_data.csv
+python3 extract_repo_details.py ../data/leaderboard.json ../data/leaderboard_repo_detailes.csv
+python3 extract_base_models.py ../data/leaderboard_repo_detailes.csv ../data/leaderboard_base_models.csv
+python3 extract_datasets.py ../data/leaderboard_repo_detailes.csv ../data/leaderboard_datasets.csv
