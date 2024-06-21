@@ -1,3 +1,25 @@
+packages <- c(
+  "shiny",
+  "dplyr",
+  "ggplot2",
+  "scales",
+  "lubridate",
+  "gridExtra",
+  "ggrepel",
+  "tidyverse",
+  "readr",
+  "stringr",
+  "tidyr",
+  "forcats",
+  "shinythemes",
+  "shinyWidgets",
+  "plotly",
+  "DT"
+)
+
+# Install missing packages
+install.packages(setdiff(packages, rownames(installed.packages())))
+
 # Import libraries
 library(shiny)
 library(dplyr)
@@ -15,11 +37,13 @@ library(shinythemes)
 library(shinyWidgets)
 library(plotly)
 library(DT)
+
+options(shiny.port = 6630)
 # Import initial data
 
-data <- read_csv("data/data.csv")
-combined_data <- read_csv("data/data_for_model_evolution.csv")
-author.activity <- read_csv("data/author_activity.csv")
+data <- read_csv("/home/data/data.csv")
+combined_data <- read_csv("/home/data/data_for_model_evolution.csv")
+author.activity <- read_csv("/home/data/author_activity.csv")
 author.activity |> dplyr::filter(str_detect(author_name, "bot$") == F) -> author.activity
 color_palette <- "Paired"
 
