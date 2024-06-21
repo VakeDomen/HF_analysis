@@ -16,3 +16,5 @@ Cargo.lock
 data
 .~lock
 process_dir
+
+.DS_Store
