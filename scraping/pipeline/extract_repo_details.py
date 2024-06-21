@@ -36,7 +36,7 @@ for (index, model) in tqdm(enumerate(model_data), total=len(model_data)):
         print(f"Failed to fetch: {model_data[index][-1]}")
         continue
     
-    if repo.private or repo.gated:
+    if repo.private:
         print(f"Repo {model_data[index][-1]} is private or gated, skipping...")
         continue
 

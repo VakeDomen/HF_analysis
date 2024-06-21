@@ -45,6 +45,7 @@ def json_to_csv(json_fp, csv_fp):
             "Model sha",
             "Flagged",
             "MoE",
+            "date",
             "model_name_for_query"
         ])
 
