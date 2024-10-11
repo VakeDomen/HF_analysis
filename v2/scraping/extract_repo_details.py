@@ -1,3 +1,4 @@
+import pprint
 import json
 import pandas as pd
 from tqdm import tqdm
@@ -12,7 +13,7 @@ input_path = sys.argv[1]
 output_path = sys.argv[2]
 
 model_data_handle = open(input_path)
-model_data = json.load(model_data_handle)["components"][4]["props"]["value"]["data"]
+model_data = json.load(model_data_handle)["components"][5]["props"]["value"]["data"]
 
 
 
@@ -52,7 +53,6 @@ for (index, model) in tqdm(enumerate(model_data), total=len(model_data)):
     repo_data["language"].append(getattr(repo.card_data, 'language', 'unknown') if hasattr(repo, 'card_data') else 'unknown')
     repo_data["datasets"].append(getattr(repo.card_data, 'datasets', 'unknown') if hasattr(repo, 'card_data') else 'unknown')
     repo_data["base_model"].append(getattr(repo.card_data, 'base_model', 'unknown') if hasattr(repo, 'card_data') else 'unknown')
-
 
 
 

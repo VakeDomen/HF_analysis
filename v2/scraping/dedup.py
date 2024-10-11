@@ -10,7 +10,7 @@ def process_csv(input_file, output_file):
     # Read the CSV file
     df = pd.read_csv(input_file, sep=";")   
     print(df)
-    df = df.sort_values(by=['ModelHub', "Average ⬆️"], ascending=False)
+    df = df.sort_values(by=['Model', "Average ⬆️"], ascending=False)
     new_df = pd.DataFrame(columns=df.columns)
     # Initialize last valid row from the first row
     last_valid_row = df.iloc[0, :].copy()
@@ -23,7 +23,7 @@ def process_csv(input_file, output_file):
         current_row = df.iloc[i, :].copy()
         # print(f"{current_row['ModelHub']} --  {last_valid_row['ModelHub']}")
         # Compare the current row with the last valid row
-        if not current_row['ModelHub'] == last_valid_row['ModelHub']:
+        if not current_row['Model'] == last_valid_row['Model']:
             # Update the last valid row to the current row
             new_df = new_df.append(last_valid_row, ignore_index=True)
             last_valid_row = current_row

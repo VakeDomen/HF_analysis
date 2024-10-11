@@ -45,13 +45,13 @@ repo_data = {
 for index, model in tqdm(enumerate(data.iterrows()), total=len(data)):
     model = model[1]
     try:
-      commits = api.list_repo_commits(model['model_name_for_query'])
+      commits = api.list_repo_commits(model['fullname'])
     except:
         continue
 
     (num_of_authors, authors) = get_num_of_authors(commits)
 
-    repo_data["name"].append(model['model_name_for_query'])
+    repo_data["name"].append(model['fullname'])
     repo_data["num_of_authors"].append(num_of_authors)
     repo_data["num_of_commits"].append(get_num_of_commits(commits))
     repo_data["first_commit"].append(get_first_commit(commits))

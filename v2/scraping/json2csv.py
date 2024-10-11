@@ -24,20 +24,26 @@ def json_to_csv(json_fp, csv_fp):
 
 
         writer.writerow([
-            "Type",
-            "ModelHub",
+            "T",
+            "Model",
             "Average ⬆️",
-            "ARC",
-            "HellaSwag",
-            "MMLU",
-            "TruthfulQA",
-            "Winogrande",
-            "GSM8K",
-            "TypeString",
+            "IFEval",
+            "IFEval Raw",
+            "BBH",
+            "BBH Raw",
+            "MATH Lvl 5",
+            "MATH Lvl 5 Raw",
+            "GPQA",
+            "GPQA Raw",
+            "MUSR",
+            "MUSR Raw",
+            "MMLU-PRO",
+            "MMLU-PRO Raw",
+            "Type",
             "Architecture",
             "Weight type",
             "Precision",
-            "Merged",
+            "Not_Merged",
             "Hub License",
             "#Params (B)",
             "Hub ❤️",
@@ -45,12 +51,17 @@ def json_to_csv(json_fp, csv_fp):
             "Model sha",
             "Flagged",
             "MoE",
-            "date",
-            "model_name_for_query"
+            "Submission Date",
+            "Upload To Hub Date",
+            "Chat Template",
+            "Maintainer\u0027s Highlight",
+            "fullname",
+            "Generation",
+            "Base Model"
         ])
 
         # Iterate over each record in the JSON data and write to CSV
-        for record in data["components"][4]["props"]["value"]["data"]:
+        for record in data["components"][5]["props"]["value"]["data"]:
             processed_record = []
             for item in record:
                 if isinstance(item, str) and 'https://huggingface.co' in item:
