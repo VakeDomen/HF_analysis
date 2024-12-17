@@ -1,3 +1,4 @@
+## -----------------------------------------------------------------------------
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
@@ -11,15 +12,31 @@ library(mgcv)
 library(patchwork)
 library(gt)
 
-# Color palette definition
-color_palette <- "Paired"
+size <- 30
+# Define a custom theme
+custom_theme <- theme(
+  plot.title = element_text(size = size + 8, face = "bold", hjust = 0.5), # Title of the plot
+  axis.title.x = element_text(size = size + 4, face = "bold", margin = margin(t = size, b = size)),           # X-axis title
+  axis.title.y = element_text(size = size + 4, face = "bold", margin = margin(r = size)),           # Y-axis title
+  axis.text.x = element_text(size = size + 2),                           # X-axis labels
+  axis.text.y = element_text(size = size + 2),                           # Y-axis labels
+  legend.title = element_text(size = size + 4, face = "bold", margin = margin(r = size)),           # Legend title
+  legend.text = element_text(size = size)
+)
 
+
+## -----------------------------------------------------------------------------
+# Color palette definition
+color_palette <- "Set2"
+
+
+## -----------------------------------------------------------------------------
 # Import main data file
-data.initial <- read_delim("../data/leaderboard_deduped.csv", 
+data.initial <- read_delim("data/leaderboard_deduped.csv", 
     delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
 # Import data details
-data.details  <- read_delim("../data/leaderboard_repo_detailes.csv", 
+data.details  <- read_delim("data/leaderboard_repo_detailes.csv", 
     delim = ";", escape_double = FALSE, trim_ws = TRUE) |> select(-1)
 
 # Check if we have duplicates in data.details
@@ -32,32 +49,32 @@ data.details[-(data.details |> duplicated() |> which()),] -> data.details
 data.initial |> left_join(data.details, by = c("model_name_for_query" = "name")) -> data
 
 # Import dataset maps
-dataset.maps <- read_delim("../data/leaderboard_datasets.csv", 
+dataset.maps <- read_delim("data/leaderboard_datasets.csv", 
     delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
 # Rename the first column so it matches the column in data
 colnames(dataset.maps)[1] <- "model_name_for_query"
 
 # Import base models
-base.models <- read_delim("../data/leaderboard_base_models.csv", 
+base.models <- read_delim("data/leaderboard_base_models.csv", 
     delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
 # Rename the first column so it matches the column in data
 colnames(base.models)[1] <- "model_name_for_query"
 
 # Import author activity
-author.activity <- read_delim("../data/leaderboard_repo_activity.csv", 
+author.activity <- read_delim("data/leaderboard_repo_activity.csv", 
     delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
 # Import commit data
-commit.data <- read_delim("../data/leaderboard_commit_data.csv", 
+commit.data <- read_delim("data/leaderboard_commit_data.csv", 
     delim = ",", escape_double = FALSE, trim_ws = TRUE)
 
 # Remove the first column which is row numbers
 commit.data[,-1] -> commit.data
 
 # Check if we have missing values in Average accuracy
-sum(is.na(data$`Average ⬆️`))
+sum(is.na(data$"Average ⬆️"))
 
 # Check if data we created has same number of rows as initial data
 data.initial$model_name_for_query |> unique() |> length() == data$model_name_for_query |> unique() |> length()
@@ -65,17 +82,22 @@ data.initial$model_name_for_query |> unique() |> length() == data$model_name_for
 # Check if we have duplicates in final data
 data[data |> duplicated(),]
 
+
+## -----------------------------------------------------------------------------
+
 # Check number of flagged, merged MoE models
 data$Flagged |> sum()
 data$Merged |> sum()
 data$MoE |> sum()
 
 # FOR SOME REASON MERGED, FLAGGED AND MOE ARE INVERTED TRUE AND FALSE (this was checked manually on the HF website)
-data |> mutate(Flagged = ifelse(Flagged == "FALSE", TRUE, FALSE), Merged = ifelse(Merged == "FALSE", TRUE, FALSE), MoE = ifelse(MoE == "FALSE", TRUE, FALSE)) -> data
+data |> mutate(Flagged = ifelse(Flagged == "FALSE", TRUE, FALSE), MoE = ifelse(MoE == "FALSE", TRUE, FALSE),  Merged = ifelse(Merged == "FALSE", TRUE, FALSE) ) -> data
+
+data |> filter(str_detect(model_name_for_query, "mistralai/"))
 
 # Arrange data by Average accuracy and rename columns that have special characters
-data |> arrange(desc(`Average ⬆️`)) |> rename(Average = `Average ⬆️`, HubLikes = `Hub ❤️`,Params = "#Params (B)") -> data
-
+data |> arrange(desc("Average ⬆️")) |> rename(Average = "Average ⬆️", HubLikes = "Hub ❤️",Params = "#Params (B)") -> data
+#data |> arrange(desc(Average)) -> data
 # Remove spaces from colnames
 colnames(data) <- gsub(" ", "", colnames(data))
 
@@ -95,20 +117,6 @@ data$Architecture |> tolower() |> table() |> sort() |> as.data.frame() |> arrang
 # Create new column Architecture_new that contains only important architectures all other are grouped under "Other"
 data |> mutate(Architecture_new = Architecture |> tolower()) |> mutate(Architecture_new = ifelse(Architecture_new %in% important_architectures, Architecture_new, "Other")) -> data
 
-# Rename some architectures to more readable names
-data <- data |> mutate(Architecture_new = case_when(
-  Architecture_new == "llamaforcausallm" ~ "LLama", 
-  Architecture_new == "mixtralforcausallm" ~ "Mixtral",
-  Architecture_new == "qwen2forcausallm" ~ "Qwen2",
-  Architecture_new == "mistralforcausallm" ~ "Mistral",
-  Architecture_new == "gemmaforcausallm" ~ "Gemma",
-  Architecture_new == "phiforcausallm" ~ "Phi",
-  Architecture_new == "optforcausallm" ~ "Opt",
-  Architecture_new == "gpt2lmheadmodel" ~ "GPT2",
-  Architecture_new == "gptneoxforcausallm" ~ "GPT-NeoX",
-  TRUE ~ "Other"
-))
-
 # Extract date while keeping exact time of first and last commit
 commit.data |> mutate(first_commit_time = first_commit, last_commit_time = last_commit, first_commit = as.Date(first_commit), last_commit = as.Date(last_commit)) -> commit.data
 
@@ -125,12 +133,13 @@ data[data$ModelHub == "https://huggingface.co/meta-llama/Meta-Llama-3-8B",]$crea
 
 author.activity |>dplyr::filter(str_detect(author_name, "bot$") == F) -> author.activity
 
+
+## -----------------------------------------------------------------------------
 # Filter data for fine-tuned models
 data |> dplyr::filter(TypeString == "fine-tuned on domain-specific datasets") -> data.fine.tuned
 
 # Filter base models that are present in fine-tuned data
 base.models |> dplyr::filter(model_name_for_query %in% data.fine.tuned$model_name_for_query) -> base.models.fine.tuned
-
 # Calculate column sums for the filtered base models (excluding the first column)
 base.models.fine.tuned[,-1] |> colSums() -> colsums
 
@@ -167,7 +176,7 @@ models.and.base.model.df |> rownames() <- NULL
 models.and.base.models.list |> sapply(length) |> table() |> as.data.frame() |> arrange(desc(Freq)) |> select(-1)
 
 # Save the data frame to a CSV file
-models.and.base.model.df |> write.csv("../data/models_and_base_models.csv")
+models.and.base.model.df |> write.csv("models_and_base_models.csv")
 
 # Calculate the maximum average for fine-tuned models and arrange them
 data |> dplyr::filter(TypeString == "fine-tuned on domain-specific datasets" & model_name_for_query %in% names(models.and.base.models.list)) |> group_by(model_name_for_query) |> summarise(base_model, Average = max(Average)) |> arrange(Average) |> unique() -> average.fine.tuned.df
@@ -185,11 +194,13 @@ fine.tuned.models.and.base.model.df |> as.tibble()
 fine.tuned.models.and.base.model.df |> inner_join(average.base.models.df, by = c("base_model")) |> group_by(model_name_for_query, base_model) |> reframe(Average = max(Average), Average_base_model) |> arrange(Average_base_model - Average) |> unique() -> fine.tuned.models.and.base.model.df
 
 # Save the final data frame to a CSV file
-write.csv(fine.tuned.models.and.base.model.df, "../data/finetuned_models_and_base_models_with_scores.csv")
+write.csv(fine.tuned.models.and.base.model.df, "finetuned_models_and_base_models_with_scores.csv")
 
 # Group the final data frame by model name for further analysis
 fine.tuned.models.and.base.model.df |> group_by(model_name_for_query)
 
+
+## -----------------------------------------------------------------------------
 # Filter data for chat models
 data |> dplyr::filter(TypeString == "chat models (RLHF, DPO, IFT, ...)") -> data.chat.model
 
@@ -237,7 +248,7 @@ chat.models.and.base.model.df |> rownames() <- NULL
 models.and.base.models.list |> sapply(length) |> table() |> as.data.frame() |> arrange(desc(Freq))
 
 # Save the data frame to a CSV file
-chat.models.and.base.model.df |> write.csv("../data/chat_models_and_base_models.csv")
+chat.models.and.base.model.df |> write.csv("chat_models_and_base_models.csv")
 
 # Calculate the maximum average for chat models and arrange them
 data |> dplyr::filter(TypeString == "chat models (RLHF, DPO, IFT, ...)" & model_name_for_query %in% names(models.and.base.models.list)) |> group_by(model_name_for_query) |> reframe(base_model, Average = max(Average)) |> unique() |> arrange(Average) -> average.chat.model.df
@@ -252,11 +263,13 @@ data |> dplyr::filter(model_name_for_query %in% chat.models.and.base.model.df$ba
 chat.models.and.base.model.df |> inner_join(chat.average.base.models.df, by = c("base_model")) |> group_by(model_name_for_query, base_model) |> reframe(Average = max(Average), Average_base_model) |> arrange(Average_base_model - Average) |> unique() -> chat.models.and.base.model.df
 
 # Save the final data frame to a CSV file
-write.csv(chat.models.and.base.model.df, "../data/chat_models_and_base_models_with_scores.csv")
+write.csv(chat.models.and.base.model.df, "chat_models_and_base_models_with_scores.csv")
 
 # Group the final data frame by model name for further analysis
 chat.models.and.base.model.df |> group_by(model_name_for_query)
 
+
+## -----------------------------------------------------------------------------
 # Filter dataset maps for fine-tuned models
 dataset.maps |> dplyr::filter(model_name_for_query %in% fine.tuned.models.and.base.model.df$model_name_for_query) -> dataset.finetuned
 
@@ -298,7 +311,7 @@ fine.tuned.models.and.datasets.df <- data.frame(model_name_for_query = names(dat
 fine.tuned.models.and.datasets.df |> rownames() <- NULL
 
 # Save the data frame to a CSV file
-fine.tuned.models.and.datasets.df |> write.csv("../data/fine.tuned.models.and.datasets.csv")
+fine.tuned.models.and.datasets.df |> write.csv("fine.tuned.models.and.datasets.csv")
 
 # Merge the fine-tuned model and base model data with the dataset data
 fine.tuned.models.and.base.model.df |> inner_join(fine.tuned.models.and.datasets.df, by = c("model_name_for_query")) -> complete.df.finetuned
@@ -311,7 +324,7 @@ complete.df.finetuned |> group_by(datasets) |> summarise(n = n(), average_diff =
 
 # Add a column for the number of datasets and save the updated data frame to a CSV file
 complete.df.finetuned |> mutate(number_of_datasets = str_count(datasets, ",") + 1, Average_diff = Average - Average_base_model) -> complete.df.finetuned
-complete.df.finetuned |> write.csv("../data/complete_df_finetuned.csv")
+complete.df.finetuned |> write.csv("complete_df_finetuned.csv")
 
 # Summarize the data by the number of datasets
 complete.df.finetuned |> group_by(number_of_datasets) |> summarise(n = n())
@@ -319,6 +332,8 @@ complete.df.finetuned |> group_by(number_of_datasets) |> summarise(n = n())
 # Check correlation between change in Average score and number of datasets
 complete.df.finetuned |> select(Average_diff, number_of_datasets) |> cor()
 
+
+## -----------------------------------------------------------------------------
 # Filter dataset maps for chat models
 dataset.maps |> dplyr::filter(model_name_for_query %in% chat.models.and.base.model.df$model_name_for_query) -> dataset.chat
 
@@ -360,7 +375,7 @@ chat.models.and.datasets.df <- data.frame(model_name_for_query = names(dataset.c
 chat.models.and.datasets.df |> rownames() <- NULL
 
 # Save the data frame to a CSV file
-chat.models.and.datasets.df |> write.csv("../data/chat.models.and.datasets.csv")
+chat.models.and.datasets.df |> write.csv("chat.models.and.datasets.csv")
 
 # Merge the chat model and base model data with the dataset data
 chat.models.and.base.model.df |> inner_join(chat.models.and.datasets.df, by = c("model_name_for_query")) -> complete.df.chat
@@ -373,7 +388,7 @@ complete.df.chat |> group_by(datasets) |> summarise(n = n(), average_diff = mean
 
 # Add a column for the number of datasets and save the updated data frame to a CSV file
 complete.df.chat |> mutate(number_of_datasets = str_count(datasets, ",") + 1, Average_diff = Average - Average_base_model) -> complete.df.chat
-complete.df.chat |> write.csv("../data/complete_df_chat.csv")
+complete.df.chat |> write.csv("complete_df_chat.csv")
 
 # Summarize average differences per dataset and create a bar plot (duplicate, appears intentional)
 complete.df.chat |> group_by(datasets) |> summarise(n = n(), average_diff = mean(Average - Average_base_model)) |> arrange(desc(average_diff)) |> dplyr::filter(n > 2) |> ggplot(aes(x = datasets, y = average_diff)) + geom_bar(stat = "identity") + labs(title = "Average difference per dataset", x = "Dataset", y = "Average difference") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
@@ -381,13 +396,17 @@ complete.df.chat |> group_by(datasets) |> summarise(n = n(), average_diff = mean
 # Identify unique datasets that are present in both chat and fine-tuned models
 complete.df.chat$datasets[complete.df.chat$datasets %in% complete.df.finetuned$datasets] |> unique()
 
+
+## -----------------------------------------------------------------------------
 # Add a new column 'Type' with value 'chat' to the complete.df.chat data frame and 'finetuned' to the complete.df.finetuned data frame
 # Bind rows of both to create final data frame
 complete.df.chat |> mutate(Type = "chat") |> bind_rows(complete.df.finetuned |> mutate(Type = "finetuned")) -> complete.chat.finetuned.df
 
 # Save the combined data frame to a CSV file
-complete.chat.finetuned.df |> write.csv("../data/complete_chat_finetuned.csv")
+complete.chat.finetuned.df |> write.csv("complete_chat_finetuned.csv")
 
+
+## -----------------------------------------------------------------------------
 author.activity |> select(author_name, num_of_repos) |> head(400) |> 
   gt()
 
@@ -407,7 +426,42 @@ commit.data$num_of_authors |> hist(main = "Number of Authors per Repository", xl
 data$Architecture_new |> table() |> as.data.frame() |> gt()
 
 
+## -----------------------------------------------------------------------------
+ggplot(commit.data, aes(x = num_of_authors)) +
+  geom_histogram(fill = "#66C2A5", color = "black", binwidth = 1) +
+  labs(
+    #title = "Number of authors per repository",
+    x = "Number of authors per repository",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 1),
+    plot.title = element_text(size = 14),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12)
+  ) +
+  custom_theme
 
+ggplot(author.activity, aes(x = num_of_repos)) +
+  geom_histogram(fill = "#66C2A5", color = "black", bins = 100) +
+  labs(
+    
+    x = "Number of repositories per user", #title = "Number of reporitories per author",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 1),
+    plot.title = element_text(size = 14),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12)
+  ) +
+  custom_theme
+
+
+
+## -----------------------------------------------------------------------------
 # Plot a histogram of the Average variable with a bin width of 0.3
 data |> ggplot(aes(x = Average)) + geom_histogram(binwidth = 0.3) + labs(title = "Average Distribution", x = "Average", y = "Count")
 
@@ -434,6 +488,8 @@ data |> arrange(desc(Average)) |> head(50) |> select(Average, HubLikes, download
   ggcorrplot::ggcorrplot(hc.order = TRUE, type = "lower", outline.color = "black", lab = TRUE) + 
   labs(title = "Correlation Plot for Top 50 Data")
 
+
+## -----------------------------------------------------------------------------
 # Select the model_name_for_query and Average columns from the data
 data |> select(model_name_for_query, Average) |> 
   # Perform an inner join with dataset.maps on the model_name_for_query column
@@ -454,6 +510,8 @@ cor.score.dataset[2:nrow(cor.score.dataset),1] |>
   barplot(main = "Correlation with Average", col = "blue", las = 2, cex.names = 0.6)
 
 
+
+## -----------------------------------------------------------------------------
 # Set the margins for the plot
 par(mar = c(10, 5, 4, 5))
 
@@ -471,9 +529,11 @@ top100.datasets |> ggplot(aes(x = rownames(top100.datasets), y = count)) +
   labs(title = "Top 100 Datasets", x = "Dataset", y = "Count")
 
 # Save the plot as a PDF
-ggsave("../out/top100datasets.pdf", width = 20, height = 10)
+ggsave("top100datasets.pdf", width = 20, height = 10)
 
 
+
+## -----------------------------------------------------------------------------
 # Select the model_name_for_query and Average columns from the data
 data |> select(model_name_for_query, Average) |> 
   # Perform an inner join with base.models on the model_name_for_query column
@@ -494,6 +554,8 @@ cor.score.base.model[2:nrow(cor.score.base.model),1] |>
   barplot(main = "Correlation Base model with Average", col = "blue", las = 2, cex.names = 0.6)
 
 
+
+## -----------------------------------------------------------------------------
 # Select the first 100 rows from data, then select model_name_for_query and Average columns
 # Perform an inner join with commit.data by matching model_name_for_query to name
 # Select Average, num_of_authors, and num_of_commits columns and calculate the correlation matrix
@@ -517,6 +579,8 @@ data |> group_by(TypeString) |>
   summarise(Average = mean(Average)) |> 
   arrange(desc(Average))
 
+
+## -----------------------------------------------------------------------------
 # Split the 'authors' column by comma and unnest the resulting list
 # Remove square brackets and single quotes from the 'authors' column
 commit.data |> 
@@ -545,6 +609,8 @@ commit.data.long |> group_by(authors) |>
   arrange(desc(total_models))
 
 
+
+## -----------------------------------------------------------------------------
 # Select the 'authors' and 'first_commit' columns from commit.data and arrange the data by 'first_commit'
 commit.data |> select(authors, first_commit) |> arrange(first_commit)
 
@@ -567,21 +633,27 @@ commit.data.long |> select(authors, first_commit) |> arrange(first_commit) |> di
 
 # Plot the total number of authors over time, distinguishing between new authors and total authors
 ggplot(author.list |> group_by(month) |> summarise(new_authors = n()) |> mutate(total_authors = cumsum(new_authors)), aes(x = month)) +
-  geom_point(aes(y = new_authors, color = "New Authors"), size = 2, alpha = 0.7) +
-  geom_point(aes(y = total_authors, color = "Total Authors"), size = 2, alpha = 0.7) +
-  geom_smooth(aes(y = new_authors), color = "darkblue") +
-  geom_smooth(aes(y = total_authors), color = "#b5162b") +
-  scale_color_manual(values = c("New Authors" = "darkblue", "Total Authors" = "#b5162b"),
+  geom_point(aes(y = new_authors, color = "New Authors"), size = 4, alpha = 0.8) +
+  geom_point(aes(y = total_authors, color = "Total Authors"), size = 4, alpha = 0.8) +
+  geom_smooth(aes(y = new_authors), color = "#66C2A5", size = 1.5) +
+  geom_smooth(aes(y = total_authors), color = "#FC8D62", size = 1.5) +
+  scale_color_manual(values = c("New Authors" = "#66C2A5", "Total Authors" = "#FC8D62"),
                      labels = c("New Authors", "Total Authors")) +
-  labs(title = "Total and new authors over time", x = "First commit", y = "Authors", color = "Legend") +
-  scale_x_date(date_labels = "%b %Y", date_breaks = "3 month") +
+  labs(x = "Date", y = "Authors", color = "Legend") +  #title = "Total and new authors over time",
+  scale_x_date(date_labels = "%b %Y", date_breaks = "6 month") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom") +
-  scale_y_continuous(breaks = seq(0, 3000, 200))
-
+  # scale_y_continuous(breaks = seq(0, 3000, 200)) +
+  custom_theme
 # Save the plot as a PDF
-ggsave("../out/total_authors_over_time.pdf", width = 10, height = 6)
+ggsave("total_authors_over_time.pdf", width = 10, height = 6)
 
+library(RColorBrewer)
+display.brewer.pal(n = 3, name = color_palette)
+brewer.pal(n = 3, name = color_palette)
+
+
+## -----------------------------------------------------------------------------
 # Generate a dataframe with year and month columns from the 'created_at' column
 data |> 
   mutate(year = year(created_at), month = month(created_at)) |> 
@@ -606,32 +678,32 @@ average.vs.total.per.month |>
   #MODEL RELEASE DATES
   #LAMMA
   geom_vline(xintercept = as.Date("2024-04-18"), linetype = "dashed", color = "red") +
-  geom_text(aes(x = as.Date("2024-04-18"), y = y.intercept, label = "LLama3"), angle = 90, hjust = 0.8, vjust = -0.8, color = "red") +
+  geom_text(aes(x = as.Date("2024-04-18"), y = y.intercept, label = "LLama3"), angle = 90, hjust = 0.8, vjust = -0.5, color = "red") +
   geom_vline(xintercept = as.Date("2023-07-18"), linetype = "dashed", color = "blue") +
-  geom_text(aes(x = as.Date("2023-07-18"), y = y.intercept, label = "LLama2"), angle = 90, hjust = 0.8, vjust = -0.8, color = "blue") +
+  geom_text(aes(x = as.Date("2023-07-18"), y = y.intercept, label = "LLama2"), angle = 90, hjust = 0.8, vjust = -0.5, color = "blue") +
   geom_vline(xintercept = as.Date("2023-02-24"), linetype = "dashed", color = "darkgreen") +
-  geom_text(aes(x = as.Date("2023-02-24"), y = y.intercept, label = "LLama1"), angle = 90, hjust = 0.8, vjust = -0.8, color = "darkgreen") +
+  geom_text(aes(x = as.Date("2023-02-24"), y = y.intercept, label = "LLama1"), angle = 90, hjust = 0.8, vjust = -0.5, color = "darkgreen") +
   #GEMINI
   geom_vline(xintercept = as.Date("2023-12-6"), linetype = "dashed", color = "black") +
-  geom_text(aes(x = as.Date("2023-12-6"), y = y.intercept, label = "Gemini1.0"), angle = 90, hjust = 0.8, vjust = -0.8, color = "black") +
+  geom_text(aes(x = as.Date("2023-12-6"), y = y.intercept, label = "Gemini1.0"), angle = 90, hjust = 0.8, vjust = -0.5, color = "black") +
   geom_vline(xintercept = as.Date("2024-02-15"), linetype = "dashed", color = "purple") +
-  geom_text(aes(x = as.Date("2024-02-15"), y = y.intercept, label = "Gemini1.5"), angle = 90, hjust = 0.8, vjust = -0.8, color = "purple") +
+  geom_text(aes(x = as.Date("2024-02-15"), y = y.intercept, label = "Gemini1.5"), angle = 90, hjust = 0.8, vjust = -0.5, color = "purple") +
   #MISTRAL
   geom_vline(xintercept = as.Date("2023-9-20"), linetype = "dashed", color = "orange") +
-  geom_text(aes(x = as.Date("2023-9-20"), y = y.intercept, label = "Mistral7b-v0.1"), angle = 90, hjust = 0.8, vjust = -0.8, color = "orange") +
+  geom_text(aes(x = as.Date("2023-9-20"), y = y.intercept, label = "Mistral7b-v0.1"), angle = 90, hjust = 0.8, vjust = -0.5, color = "orange") +
   geom_vline(xintercept = as.Date("2024-5-22"), linetype = "dashed", color = "green") +
-  geom_text(aes(x = as.Date("2024-5-22"), y = y.intercept, label = "Mistral7b-v0.3"), angle = 90, hjust = 0.8, vjust = -0.8, color = "green") +
+  geom_text(aes(x = as.Date("2024-5-22"), y = y.intercept, label = "Mistral7b-v0.3"), angle = 90, hjust = 0.8, vjust = -0.5, color = "green") +
   geom_vline(xintercept = as.Date("2024-4-10"), linetype = "dashed", color = "pink") +
-  geom_text(aes(x = as.Date("2024-4-10"), y = y.intercept, label = "Mixtral 8x22B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "pink") +
+  geom_text(aes(x = as.Date("2024-4-10"), y = y.intercept, label = "Mixtral 8x22B"), angle = 90, hjust = 0.8, vjust = -0.5, color = "pink") +
   geom_vline(xintercept = as.Date("2023-12-11"), linetype = "dashed", color = "lightgreen") +
-  geom_text(aes(x = as.Date("2023-12-11"), y = y.intercept, label = "Mistral7b-v0.2 and Mixtral 8x7B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "lightgreen") + 
+  geom_text(aes(x = as.Date("2023-12-11"), y = y.intercept, label = "Mistral7b-v0.2 and Mixtral 8x7B"), angle = 90, hjust = 0.8, vjust = -0.5, color = "lightgreen") + 
   #PHI
   geom_vline(xintercept = as.Date("2023-10-17"), linetype = "dashed", color = "cyan") +
-  geom_text(aes(x = as.Date("2023-10-17"), y = y.intercept, label = "Phi1 and Phi1.5"), angle = 90, hjust = 0.8, vjust = -0.8, color = "cyan") +
+  geom_text(aes(x = as.Date("2023-10-17"), y = y.intercept, label = "Phi1 and Phi1.5"), angle = 90, hjust = 0.8, vjust = -0.5, color = "cyan") +
   geom_vline(xintercept = as.Date("2024-1-11"), linetype = "dashed", color = "grey") +
-  geom_text(aes(x = as.Date("2024-1-11"), y = y.intercept, label = "Phi2"), angle = 90, hjust = 0.8, vjust = -0.8, color = "grey")+
+  geom_text(aes(x = as.Date("2024-1-11"), y = y.intercept, label = "Phi2"), angle = 90, hjust = 0.8, vjust = -0.5, color = "grey")+
   geom_vline(xintercept = as.Date("2024-4-22"), linetype = "dashed", color = "lightblue") +
-  geom_text(aes(x = as.Date("2024-4-22"), y = y.intercept, label = "Phi3-mini"), angle = 90, hjust = 0.8, vjust = -0.8, color = "lightblue")+
+  geom_text(aes(x = as.Date("2024-4-22"), y = y.intercept, label = "Phi3-mini"), angle = 90, hjust = 0.8, vjust = -0.5, color = "lightblue")+
   #FALCON
   geom_vline(xintercept = as.Date("2023-4-24"), linetype = "dashed", color = "purple") +
   geom_text(aes(x = as.Date("2023-4-24"), y = y.intercept, label = "Falcon-7B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "purple") +
@@ -640,8 +712,10 @@ average.vs.total.per.month |>
   geom_text(aes(x = as.Date("2022-10-21"), y = y.intercept, label = "Bloom"), angle = 90, hjust = 0.8, vjust = -0.8, color = "darkgrey")
 
 # Save the plot as a PDF
-ggsave("../out/total_models_per_month.pdf", width = 30, height = 8)
+ggsave("total_models_per_month.pdf", width = 30, height = 8)
 
+
+## -----------------------------------------------------------------------------
 # Set the y-intercept for placing labels
 y.intercept <- 100
 
@@ -693,8 +767,10 @@ data |>
   geom_text(aes(x = as.Date("2022-10-21"), y = y.intercept, label = "Bloom"), angle = 90, hjust = 0.8, vjust = -0.8, color = "darkgrey")+
     scale_fill_binned(type = "viridis")
   
-  ggsave("../out/total_models_per_date.pdf", width = 25, height = 8)
+  ggsave("total_models_per_date.pdf", width = 25, height = 8)
 
+
+## -----------------------------------------------------------------------------
 # Generate a dataframe with year and month columns from the 'created_at' column
 data |>
   dplyr::filter(Params > 0) |>
@@ -721,109 +797,209 @@ y.intercept <- 0.04
 # Filter months with at least 30 total models and create a plot showing the params/average per month with notable dates of release of models
 average.vs.params.per.month |>
   dplyr::filter(total >= 30) |>
-  ggplot(aes(x = date + days(15), y = Params.vs.Average, fill = total)) + 
-  geom_col(position = "dodge") + 
-  labs(title = "Params/Average by Month", x = "Month", y = "Params/Average") + 
+  ggplot(aes(x = date, y = Params.vs.Average, fill = total)) + 
+  geom_col(position = "dodge", size = 0.2, color = "black") +
+  labs(
+    # title = "Parameters/average score by month", 
+    x = "Month", y = "Parameters/average score") + 
   theme_minimal() + 
-  theme(legend.position = "bottom") + 
-  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y",expand = expansion(mult = c(0, 0))) + 
+    custom_theme +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 90), axis.text.x = element_text(vjust = 0.5),legend.key.size = unit(1.5, "cm")) + 
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y",expand = expansion(mult = c(0, 0))) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+   #MODEL RELEASE DATES
   #LAMMA
-  geom_vline(xintercept = as.Date("2024-04-18"), linetype = "dashed", color = "red") +
-  geom_text(aes(x = as.Date("2024-04-18"), y = y.intercept, label = "LLama3"), angle = 90, hjust = 0.8, vjust = -0.8, color = "red") +
-  geom_vline(xintercept = as.Date("2023-07-18"), linetype = "dashed", color = "blue") +
-  geom_text(aes(x = as.Date("2023-07-18"), y = y.intercept, label = "LLama2"), angle = 90, hjust = 0.8, vjust = -0.8, color = "blue") +
+  geom_vline(xintercept = as.Date("2024-04-18"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2024-04-18"), y = y.intercept, label = "LLama3"), angle = 90, hjust = 0.9, vjust = .2, color = "#5d6066", size = 7) +
+  geom_vline(xintercept = as.Date("2023-07-18"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2023-07-18"), y = y.intercept, label = "LLama2"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+  geom_vline(xintercept = as.Date("2023-02-24"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2023-02-24"), y = y.intercept, label = "LLama1"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   #GEMINI
-  geom_vline(xintercept = as.Date("2023-12-6"), linetype = "dashed", color = "black") +
-  geom_text(aes(x = as.Date("2023-12-6"), y = y.intercept, label = "Gemini1.0"), angle = 90, hjust = 0.8, vjust = -0.8, color = "black") +
-  geom_vline(xintercept = as.Date("2024-02-15"), linetype = "dashed", color = "purple") +
-  geom_text(aes(x = as.Date("2024-02-15"), y = y.intercept, label = "Gemini1.5"), angle = 90, hjust = 0.8, vjust = -0.8, color = "purple") +
+  geom_vline(xintercept = as.Date("2023-12-6"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2023-12-6"), y = y.intercept, label = "Gemini1.0"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+  geom_vline(xintercept = as.Date("2024-02-15"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2024-02-15"), y = y.intercept, label = "Gemini1.5"), angle = 90, hjust = 0.8, vjust = 0, color = "#5d6066", size = 7) +
   #MISTRAL
-  geom_vline(xintercept = as.Date("2023-9-27"), linetype = "dashed", color = "orange") +
-  geom_text(aes(x = as.Date("2023-9-27"), y = y.intercept, label = "Mistral7B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "orange") +
-  geom_vline(xintercept = as.Date("2024-4-10"), linetype = "dashed", color = "pink") +
-  geom_text(aes(x = as.Date("2024-4-10"), y = y.intercept, label = "Mixtral 8x22B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "pink") +
-  geom_vline(xintercept = as.Date("2023-12-11"), linetype = "dashed", color = "lightgreen") +
-  geom_text(aes(x = as.Date("2023-12-11"), y = y.intercept, label = "Mixtral 8x7B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "lightgreen") + 
+  geom_vline(xintercept = as.Date("2023-9-20"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2023-9-20"), y = y.intercept, label = "Mistral7b-v0.1"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+ # geom_vline(xintercept = as.Date("2024-5-22"), linetype = "dashed", color = "#5d6066") +
+  #geom_text(aes(x = as.Date("2024-5-22"), y = y.intercept, label = "Mistral7b-v0.3"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+  geom_vline(xintercept = as.Date("2024-4-10"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2024-4-10"), y = y.intercept, label = "Mixtral 8x22B"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+  geom_vline(xintercept = as.Date("2023-12-11"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2023-12-11"), y = y.intercept, label = "Mistral7b-v0.2 & Mixtral 8x7B"), angle = 90, hjust = 0.93, vjust = 1.4, color = "#5d6066", size = 7) + 
   #PHI
-  geom_vline(xintercept = as.Date("2023-10-17"), linetype = "dashed", color = "cyan") +
-  geom_text(aes(x = as.Date("2023-10-17"), y = y.intercept, label = "Phi1 and Phi1.5"), angle = 90, hjust = 0.8, vjust = -0.8, color = "cyan") +
-  geom_vline(xintercept = as.Date("2024-1-11"), linetype = "dashed", color = "grey") +
-  geom_text(aes(x = as.Date("2024-1-11"), y = y.intercept, label = "Phi2"), angle = 90, hjust = 0.8, vjust = -0.8, color = "grey")+
-  geom_vline(xintercept = as.Date("2024-4-22"), linetype = "dashed", color = "lightblue") +
-  geom_text(aes(x = as.Date("2024-4-22"), y = y.intercept, label = "Phi3-mini"), angle = 90, hjust = 0.8, vjust = -0.8, color = "lightblue")+
+  geom_vline(xintercept = as.Date("2023-10-17"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2023-10-17"), y = y.intercept, label = "Phi1 & Phi1.5"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+  geom_vline(xintercept = as.Date("2024-1-11"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2024-1-11"), y = y.intercept, label = "Phi2"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7)+
+  geom_vline(xintercept = as.Date("2024-4-22"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2024-4-22"), y = y.intercept, label = "Phi3-mini"), angle = 90, hjust = 0.9, vjust = 1, color = "#5d6066", size = 7)+
   #FALCON
-  geom_vline(xintercept = as.Date("2023-4-24"), linetype = "dashed", color = "purple") +
-  geom_text(aes(x = as.Date("2023-4-24"), y = y.intercept, label = "Falcon-7B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "purple") +
-  scale_fill_binned(type = "gradient")       
+  geom_vline(xintercept = as.Date("2023-4-24"), linetype = "dashed", color = "#5d6066") +
+  geom_text(aes(x = as.Date("2023-4-24"), y = y.intercept, label = "Falcon-7B"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+
+  scale_fill_gradientn(
+  colors = c(brewer.pal(4, "Set2")[2], 
+             brewer.pal(4, "Set2")[1]),
+             # brewer.pal(4, "Set2")[3], 
+             # brewer.pal(4, "Set2")[4]),  # Adding more colors to the gradient
+  name = "Total"
+)
 
 # Save plot as PDF
-ggsave("../out/params.vs.average.per.month.pdf", width = 30, height = 12)
+ggsave("params.vs.average.per.month.pdf", width = 30, height = 12)
 
+
+## -----------------------------------------------------------------------------
+average.vs.params.per.month |>
+  dplyr::filter(total >= 30) |>
+  ggplot(aes(x = date, y = Params.vs.Average)) +
+  geom_segment(aes(xend = date, y = 0, yend = Params.vs.Average), color = "gray") +
+  geom_point(size = 4, aes(color = total)) +
+  
+  labs(title = "Lollipop Chart: Params/Average by Month", x = "Month", y = "Params/Average") +
+  
+  theme_minimal() +
+  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
+  
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = expansion(mult = c(0, 0))) +
+  scale_color_gradient(low = "lightblue", high = "darkblue", name = "Total")
+
+
+average.vs.params.per.month |>
+  dplyr::filter(total >= 30) |>
+  ggplot(aes(x = date, y = 1, fill = Params.vs.Average)) +
+  geom_tile(color = "white", size = 0.2) +
+  
+  labs(title = "Heatmap: Params/Average by Month", x = "Month", y = "") +
+  
+  theme_minimal() +
+  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
+  
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = expansion(mult = c(0, 0))) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", name = "Params/Average")
+
+average.vs.params.per.month |>
+  dplyr::filter(total >= 30) |>
+  ggplot(aes(x = date, y = Params.vs.Average, size = Params.vs.Average, fill = total)) +
+  geom_point(shape = 21, color = "blue", alpha = 0.8) +
+  
+  labs(title = "Dot Matrix: Params/Average by Month", x = "Month", y = "Params/Average") +
+  
+  theme_minimal() +
+  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
+  
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = expansion(mult = c(0, 0))) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", name = "Total")
+
+average.vs.params.per.month |>
+  dplyr::filter(total >= 30) |>
+  ggplot(aes(x = date, y = Params.vs.Average, group = 1)) +
+  geom_line(aes(color = total), size = 1) +
+  geom_point(aes(color = total), size = 3) +
+  
+  labs(title = "Line Plot: Params/Average by Month", x = "Month", y = "Params/Average") +
+  
+  theme_minimal() +
+  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
+  
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = expansion(mult = c(0, 0))) +
+  scale_color_gradient(low = "lightblue", high = "darkblue", name = "Total")
+
+average.vs.params.per.month |>
+  dplyr::filter(total >= 30) |>
+  ggplot(aes(x = date, y = Params.vs.Average)) +
+  geom_point(aes(color = total), size = 3) +
+  geom_smooth(method = "loess", color = "blue", fill = "lightblue", size = 2, se = F) +
+  
+  labs(title = "Parameters/Average by Month", x = "Month", y = "Params/Average") +
+  theme_minimal() +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = expansion(mult = c(0, 0))) +
+  scale_color_gradient(low = "lightblue", high = "darkblue", name = "Total")
+
+
+
+## -----------------------------------------------------------------------------
 # y-intercept for placing labels
 y.intercept <- 250
 
 # Create a plot showing the total models per week with notable model release dates
+
+data |> pull(Architecture_new) |> unique()
+
 data |> 
   select(Average, Params, created_at, Architecture_new) |> 
   na.omit() |> 
+  mutate(Architecture_new = case_when(
+    Architecture_new == "llamaforcausallm" ~ "Llama",
+    Architecture_new == "mistralforcausallm" ~ "Mistral",
+    Architecture_new == "mixtralforcausallm" ~ "Mixtral",
+    Architecture_new == "phiforcausallm" ~ "Phi",
+    Architecture_new == "gemmaforcausallm" ~ "Gemma",
+    Architecture_new == "optforcausallm" ~ "OPT",
+    Architecture_new == "gptneoxforcausallm" ~ "GPT-NeoX",
+    Architecture_new == "qwen2forcausallm" ~ "Qwen2",
+    Architecture_new == "gpt2lmheadmodel" ~ "GPT-2",
+    TRUE ~ "Other"  # Default case for any unmatched names
+  )) |> 
   arrange(created_at) |> 
   dplyr::filter(Params > 0 & created_at >= "2023-01-01") |> 
   mutate(week_start = floor_date(created_at, "week")) |> 
   group_by(week_start,Architecture_new) |> 
   summarise(Average = max(Average, na.rm = TRUE), total = n(), .groups = 'drop') |> 
   ggplot(aes(x = week_start, y = total, fill = Architecture_new)) +
-  geom_col() + 
-  labs(title = "Total models per date", x = "Date", y = "Total models per date") +
+  geom_col(color = "black", linewidth = 0.3) + 
+  labs(
+    #title = "Total models per date",
+       x = "Date", y = "Total models per date", fill = "Architecture") +
   theme_minimal() +
-  theme(legend.position = "bottom") +
+  custom_theme +
+  scale_x_date(date_labels = "%b %Y", limits = c(as.Date("2023-01-10"), as.Date("2024-06-01")), breaks = seq(as.Date("2023-01-10"), as.Date("2024-06-01"), by = "3 months")) +
+  scale_y_continuous(n.breaks = 3) +
+  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1), legend.text = element_text(size = size - 5), legend.title = element_text(size = size -5 , face = "bold", margin = margin(l = 0,r = 5))) +
   #MODEL RELEASE DATES
   #LAMMA
   geom_vline(xintercept = as.Date("2024-04-18"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2024-04-18"), y = y.intercept, label = "LLama3"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2024-04-18"), y = y.intercept, label = "LLama3"), angle = 90, hjust = 0.9, vjust = .2, color = "#5d6066", size = 7) +
   geom_vline(xintercept = as.Date("2023-07-18"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2023-07-18"), y = y.intercept, label = "LLama2"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2023-07-18"), y = y.intercept, label = "LLama2"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   geom_vline(xintercept = as.Date("2023-02-24"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2023-02-24"), y = y.intercept, label = "LLama1"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2023-02-24"), y = y.intercept, label = "LLama1"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   #GEMINI
   geom_vline(xintercept = as.Date("2023-12-6"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2023-12-6"), y = y.intercept, label = "Gemini1.0"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2023-12-6"), y = y.intercept, label = "Gemini1.0"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   geom_vline(xintercept = as.Date("2024-02-15"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2024-02-15"), y = y.intercept, label = "Gemini1.5"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2024-02-15"), y = y.intercept, label = "Gemini1.5"), angle = 90, hjust = 0.8, vjust = 0, color = "#5d6066", size = 7) +
   #MISTRAL
   geom_vline(xintercept = as.Date("2023-9-20"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2023-9-20"), y = y.intercept, label = "Mistral7b-v0.1"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2023-9-20"), y = y.intercept, label = "Mistral7b-v0.1"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   geom_vline(xintercept = as.Date("2024-5-22"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2024-5-22"), y = y.intercept, label = "Mistral7b-v0.3"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2024-5-22"), y = y.intercept, label = "Mistral7b-v0.3"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   geom_vline(xintercept = as.Date("2024-4-10"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2024-4-10"), y = y.intercept, label = "Mixtral 8x22B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2024-4-10"), y = y.intercept, label = "Mixtral 8x22B"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   geom_vline(xintercept = as.Date("2023-12-11"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2023-12-11"), y = y.intercept, label = "Mistral7b-v0.2 and Mixtral 8x7B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) + 
+  geom_text(aes(x = as.Date("2023-12-11"), y = y.intercept, label = "Mistral7b-v0.2 & Mixtral 8x7B"), angle = 90, hjust = 0.93, vjust = 1.4, color = "#5d6066", size = 7) + 
   #PHI
   geom_vline(xintercept = as.Date("2023-10-17"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2023-10-17"), y = y.intercept, label = "Phi1 and Phi1.5"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
+  geom_text(aes(x = as.Date("2023-10-17"), y = y.intercept, label = "Phi1 & Phi1.5"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
   geom_vline(xintercept = as.Date("2024-1-11"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2024-1-11"), y = y.intercept, label = "Phi2"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3)+
+  geom_text(aes(x = as.Date("2024-1-11"), y = y.intercept, label = "Phi2"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7)+
   geom_vline(xintercept = as.Date("2024-4-22"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2024-4-22"), y = y.intercept, label = "Phi3-mini"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3)+
+  geom_text(aes(x = as.Date("2024-4-22"), y = y.intercept, label = "Phi3-mini"), angle = 90, hjust = 0.9, vjust = 1, color = "#5d6066", size = 7)+
   #FALCON
   geom_vline(xintercept = as.Date("2023-4-24"), linetype = "dashed", color = "#5d6066") +
-  geom_text(aes(x = as.Date("2023-4-24"), y = y.intercept, label = "Falcon-7B"), angle = 90, hjust = 0.8, vjust = -0.8, color = "#5d6066", size = 3) +
-  scale_fill_brewer(palette = color_palette)
+  geom_text(aes(x = as.Date("2023-4-24"), y = y.intercept, label = "Falcon-7B"), angle = 90, hjust = 0.9, vjust = 0, color = "#5d6066", size = 7) +
+  scale_fill_brewer(palette = "Set3") +
+  guides(fill = guide_legend(ncol = 5))
 
 # Save the plot as a PDF
-ggsave("../out/total_models_per_week.jpg", width = 30, height = 10)
+ggsave("total_models_per_week.jpg", width = 30, height = 10)
 
-release_dates <- data.frame(
-        date = as.Date(c("2024-04-18", "2023-07-18", "2023-02-24", "2023-12-06",
-                         "2024-02-15", "2023-09-20", "2024-05-22", "2024-04-10",
-                         "2023-12-11", "2023-10-17", "2024-01-11", "2024-04-22",
-                         "2023-04-24")),
-        label = c("LLama3", "LLama2", "LLama1", "Gemini1.0", 
-                  "Gemini1.5","Mistral7b-v0.1", "Mistral7b-v0.3", "Mixtral 8x22B",
-                  "Mistral7b-v0.2 and Mixtral 8x7B", "Phi1 and Phi1.5","Phi2", "Phi3-mini",                     "Falcon-7B")
-      )
 
+## -----------------------------------------------------------------------------
 # Create a dataframe with the total number of new models and total models per day
 data |> 
   mutate(week_start = floor_date(created_at, "week")) |>
@@ -839,10 +1015,15 @@ data |>
 (total.models.vs.date.df |> 
   dplyr::filter(!is.na(TypeString)) |> 
   ggplot(aes(x = week_start, y = new_models, fill = TypeString)) + 
-  geom_col(color = "black", linewidth = 0.15) + 
-  labs(title = "New models per week", x = "", y = "Week") + 
-  theme(legend.position = "none", axis.text.x = element_blank(), panel.background = element_blank(), panel.grid = element_blank()) + 
-  scale_x_date(date_labels = "%Y-%m-%d", limits = c(as.Date("2023-01-01"), as.Date("2024-06-01")), breaks = seq(as.Date("2023-01-01"), as.Date("2024-06-01"), by = "1 month")) +  
+  geom_col(color = "black", linewidth = 0.3) + 
+  labs(
+    #title = "New models per week",
+       x = "", y = "Count", color = "Type") + 
+     theme_minimal() +
+    custom_theme +
+  theme(legend.position = "none", axis.x.title = element_blank(), axis.text.x = element_blank()) + 
+ scale_x_date(date_labels = "%b %Y", limits = c(as.Date("2023-01-10"), as.Date("2024-06-01")), breaks = seq(as.Date("2023-01-10"), as.Date("2024-06-01"), by = "3 months")) + 
+    scale_y_continuous(n.breaks = 4) +
   scale_fill_brewer(palette = "Set2") -> p1) 
 
 
@@ -854,23 +1035,40 @@ data |>
   group_by(week_start) |> 
   mutate(percentage = new_models/total_new_models_that_week) |> 
   ggplot(aes(x = week_start, y = percentage, fill = TypeString)) + 
-  geom_col(color = "black", linewidth = 0.15) + 
-  labs(title = "", x = "Date", y = "Percentage") + 
-  theme(legend.position = "bottom", panel.background = element_blank()) + 
-  scale_x_date(date_labels = "%Y-%m-%d", limits = c(as.Date("2023-01-01"), as.Date("2024-06-01")), breaks = seq(as.Date("2023-01-01"), as.Date("2024-06-01"), by = "1 month")) + 
+  theme_minimal() +
+  custom_theme +
+  geom_col(color = "black", linewidth = 0.3) + 
+  labs(title = "", x = "Date", y = "Ratio [%]", fill = "Type") + 
+  theme(
+    legend.position = "bottom",
+    panel.background = element_blank(),
+    legend.text = element_text(size = size - 5)
+  ) + 
+  scale_x_date(
+    date_labels = "%b %Y",
+    limits = c(as.Date("2023-01-10"), as.Date("2024-06-01")),
+    breaks = seq(as.Date("2023-01-10"), as.Date("2024-06-01"), by = "3 months")
+  ) + 
+  scale_y_continuous(labels = function(x) x * 100, n.breaks = 3) +
   scale_fill_brewer(palette = "Set2") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.text = element_text(size = 8), axis.title.x = element_text(margin = margin(t = 20, 
-                             r = 50,  # Right margin
-                             b = 40,  # Bottom margin
-                             l = 10))) -> p2)
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  guides(fill = guide_legend(nrow = 3)) -> p2)
+
+  
+  # , legend.text = element_text(size = 9), axis.title.x = element_text(margin = margin(t = 20, 
+  #                            r = 50,  # Right margin
+  #                            b = 40,  # Bottom margin
+  #                            l = 10))) -> 
 
 # Arrange plots p1 and p2 vertically, save the combined plot as a PDF
-gridExtra::grid.arrange(p1, p2, ncol = 1) -> p3
+gridExtra::grid.arrange(p1, p2, ncol = 1, heights = c(1, 1.6)) -> p3
 
 p1 + p2 + plot_layout(ncol = 1)
 
-ggsave("../out/new_models_vs_date_combined.pdf", p3, width = 20, height = 16)
+ggsave("new_models_vs_date_combined.pdf", p3, width = 20, height = 16)
 
+
+## -----------------------------------------------------------------------------
 # Plot author activity over time, showing the evolution of author activity by TypeString
 # Filter author.activity, arrange by num_of_repos, select top 10, join with data, and select relevant columns
 # Group by author_name, TypeString, and created_at, then plot using ggplot
@@ -888,7 +1086,7 @@ ggsave("../out/new_models_vs_date_combined.pdf", p3, width = 20, height = 16)
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "top", axis.text.y = element_blank()) -> p11)
 
 # Save the author activity plot as a PDF
-ggsave("../out/author_activity.pdf", width = 20, height = 20)
+ggsave("author_activity.pdf", width = 20, height = 20)
 
 # Plot average author activity over time, showing the average score of authors' activities
 # Filter author.activity, select top 10, join with data, select relevant columns, group, and reframe data
@@ -907,8 +1105,10 @@ ggsave("../out/author_activity.pdf", width = 20, height = 20)
 
 # Arrange the author activity plots vertically and save as a combined PDF
 gridExtra::grid.arrange(p11, p12, ncol = 1) -> p13
-ggsave("../out/author_activity_combined.pdf", p13, width = 20, height = 12)
+ggsave("author_activity_combined.pdf", p13, width = 20, height = 12)
 
+
+## -----------------------------------------------------------------------------
 # Select unique dates and arrange them from smallest to largest
 unique_dates <- sort(unique(data$created_at))
 
@@ -935,26 +1135,38 @@ data |>
 # Plot Type vs. Average over time
 (data |> dplyr::filter(!is.na(TypeString)) |> 
     ggplot(aes(x = created_at, y = Average, color = TypeString)) + 
-    geom_point(alpha = 0.65, position = position_dodge2()) + 
-    geom_smooth(se = FALSE, linewidth = 1.5) + 
-    labs(title = "Type vs Average", x = "", y = "Average") +  
+    geom_point(alpha = 0.3, position = position_dodge2()) + 
+    geom_smooth(se = FALSE, linewidth = 2.5) + 
+    labs(
+      #title = "Change of average bentchmark score over time for different types of models", 
+      x = "", y = "Average score") +  
     scale_color_brewer(palette = color_palette) +
-    theme(legend.position = "none", panel.background = element_blank(), panel.grid = element_blank(), axis.text.x = element_blank()) -> p_type_vs_average)
+    theme_minimal() +
+    custom_theme +
+    theme(legend.position = "none", panel.background = element_blank(), axis.text.x = element_blank()) +
+    scale_x_date(date_labels = "%b %Y", limits = c(as.Date("2023-01-01"), as.Date("2024-06-01")), breaks = seq(as.Date("2023-01-01"), as.Date("2024-06-01"), by = "1 month")) -> p_type_vs_average)
 
 # Plot Type vs. Total combined
 (filtered_data |> 
   ggplot(aes(x = created_at, y = total_cumsum, color = TypeString)) +
-  geom_line(aes(group = TypeString), position = "dodge", linewidth = 1.5, alpha = 0.8) +
-  labs(title = "", x = "Date", y = "Total") +
+  geom_line(aes(group = TypeString), position = "dodge", linewidth = 2.5, alpha = 0.8) +
+    theme_minimal() +
+  labs(title = "", x = "Date", y = "Total", color = "Type") +
   scale_color_brewer(palette = color_palette) +
-  theme(legend.position = "bottom", panel.background = element_blank(), panel.grid = element_blank()) +
-  scale_x_date(date_labels = "%b %Y", limits = c(as.Date("2023-01-01"), as.Date("2024-06-01")), breaks = seq(as.Date("2023-01-01"), as.Date("2024-06-01"), by = "1 month")) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) -> p_type_vs_total)
+  theme(legend.position = "bottom") +
+    custom_theme +
+  scale_x_date(date_labels = "%b %Y", limits = c(as.Date("2023-01-01"), as.Date("2024-06-01")), breaks = seq(as.Date("2023-01-01"), as.Date("2024-06-01"), by = "3 month")) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.text = element_text(size = size - 5)) +
+    guides(color = guide_legend(nrow = 3))
+  
+  -> p_type_vs_total)
 
-# Arrange the plots vertically and save as a combined PDF
-gridExtra::grid.arrange(p_type_vs_average, p_type_vs_total, ncol = 1) -> p_type_combined
-ggsave("../out/type_combined.pdf", p_type_combined, width = 18, height = 8)
+# Arrange the plots vertically and save as a combined PD
+gridExtra::grid.arrange(p_type_vs_average, p_type_vs_total, ncol = 1, heights = c(1,1.5)) -> p_type_combined
+ggsave("type_combined.pdf", p_type_combined, width = 18, height = 8)
 
+
+## -----------------------------------------------------------------------------
 # Find common datasets between complete.df.chat and complete.df.finetuned
 complete.df.chat$datasets[complete.df.chat$datasets %in% complete.df.finetuned$datasets] |> unique() -> datasets_common
 
@@ -983,9 +1195,11 @@ complete.chat.finetuned.df |>
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 # Save the plot as a PDF
-ggsave("../out/average_diff_per_dataset.pdf", width = 5, height = 5)
+ggsave("average_diff_per_dataset.pdf", width = 5, height = 5)
 
 
+
+## -----------------------------------------------------------------------------
 # Plot for Params between 65 and 75
 data |> 
   dplyr::filter(Params > 65 & Params < 75) |> 
@@ -1017,6 +1231,8 @@ data |>
   labs(title = "Average vs Date for Params between 1 and 15")
 
 
+
+## -----------------------------------------------------------------------------
 # Plot Params vs Average with scatter points and smoothed line
 data |> 
   group_by(Params) |>  # Group data by Params value
@@ -1041,23 +1257,83 @@ data |>
   theme_minimal()  # Apply minimal theme
 
 # Save Params density plot
-ggsave("../out/params_density.pdf", width = 10, height = 6)
+ggsave("params_density.pdf", width = 10, height = 6)
 
 
+
+## -----------------------------------------------------------------------------
 # Create histogram of Params with fill by Architecture_new
 (plot_params_vs_architecture <- data |> 
+    mutate(Architecture_new = case_when(
+    Architecture_new == "llamaforcausallm" ~ "Llama",
+    Architecture_new == "mistralforcausallm" ~ "Mistral",
+    Architecture_new == "mixtralforcausallm" ~ "Mixtral",
+    Architecture_new == "phiforcausallm" ~ "Phi",
+    Architecture_new == "gemmaforcausallm" ~ "Gemma",
+    Architecture_new == "optforcausallm" ~ "OPT",
+    Architecture_new == "gptneoxforcausallm" ~ "GPT-NeoX",
+    Architecture_new == "qwen2forcausallm" ~ "Qwen2",
+    Architecture_new == "gpt2lmheadmodel" ~ "GPT-2",
+    TRUE ~ "Other"  # Default case for any unmatched names
+  )) |> 
   dplyr::filter(Params > 0) |>  # Filter data where Params > 0
   ggplot(aes(Params, fill=Architecture_new)) +  # Define aesthetics for the plot
   geom_histogram(binwidth = 1, color = "black", size = .1) +  # Add histogram with specified bin width and border color
-  labs(title = "Params histogram", x = "Params", y = "Count") +  # Set plot titles and axis labels
+  labs(x = "", y = "Count", fill = "Architecture") +  # Set plot titles and axis labels
+       #title = "Model size (in billions of parameters) distribution") +  # Set plot titles and axis labels
   theme_minimal() +  # Apply minimal theme
-  scale_x_continuous(breaks = seq(0, 300, 5)) +  # Set x-axis breaks
-  scale_y_continuous(breaks = seq(0, 4000, 200)) +  # Set y-axis breaks
-  scale_fill_brewer(palette = color_palette) +  # Set color palette for fill
-  theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1)))  # Remove legend and adjust x-axis text
+  scale_x_continuous(breaks = seq(0, 130, 10), limits = c(0,130)) +  # Set x-axis breaks
+  scale_y_continuous(breaks = seq(0, 4000, 500)) +  # Set y-axis breaks
+  scale_fill_brewer(palette = "Set3") +  # Set color palette for fill
+   custom_theme +
+   theme(legend.position = "top", legend.text = element_text(size = size - 5), legend.title = element_text(size = size -5 , face = "bold", margin = margin(l = 0,r = 5)), axis.text.x = element_blank()))
+# Remove legend and adjust x-axis text
+
+data |> 
+  select(Params, downloads) |> 
+  filter(!is.na(Params) & !is.na(downloads) & Params > 0) |> 
+  group_by(Params) |> 
+  reframe(total = sum(downloads)) |>  # Create total downloads per Params
+  ggplot(aes(x = Params, y = total)) + 
+  
+  # Use geom_col for bar plot with identity stat
+  geom_col(show.legend = FALSE, width = 0.9, fill =  brewer.pal(4, "Set2")[1], color = "black", size = 0.1) + 
+  
+  # Add title and labels
+  labs(
+    #title = "Total downloads by model size",
+    x = "Parameters",
+    y = "Downloads in millions"
+  ) +
+  
+  # Customize theme for a cleaner look
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, size = 10),
+    plot.title = element_text(size = 14),
+    axis.text.y = element_text(margin = margin(r = 20))
+  ) +
+  
+  # Adjust y-axis to display in millions and with specific breaks
+  scale_y_continuous(
+    labels = scales::label_number(scale = 1e-6, suffix = ""),  # Convert values to millions
+    expand = expansion(mult = c(0, 0.05)),  # Add space to top of bars
+    breaks = seq(0, max(data |> filter(!is.na(Params) & !is.na(downloads) & Params > 0) |> 
+                        group_by(Params) |> 
+                        reframe(total = sum(downloads)) |> 
+                        pull(total), na.rm = TRUE), by = 2e6)  # Dynamically calculate max total and breaks
+  ) +
+  
+  scale_x_continuous(limits = c(0,130), breaks = seq(0,130,10)) +
+  custom_theme -> plot_total_downloads_by_model_size
+
+ gridExtra::grid.arrange(plot_params_vs_architecture, plot_total_downloads_by_model_size, ncol = 1, heights = c(1,1))
+
+
+
 
 # Save Params histogram plot
-ggsave("../out/params_histogram.pdf", width = 10, height = 6)
+ggsave("params_histogram.pdf", width = 10, height = 6)
 
 # Calculate total specific architecture per size of Params
 temp <- data |> 
@@ -1066,7 +1342,7 @@ temp <- data |>
   summarise(TotalSpesificPerSize = n())  # Summarise data to get total specific architecture per size of Params
 
 # Create plot showing percentage of specific architecture per number of parameters
-plot_params_vs_architecture_percentage <- data |> 
+(plot_params_vs_architecture_percentage <- data |> 
   dplyr::filter(Params > 0) |>  # Filter data where Params > 0
   group_by(Params) |>  # Group data by Params
   summarise(TotalModelsPerSize = n()) |>  # Summarise data to get total models per size of Params
@@ -1076,26 +1352,28 @@ plot_params_vs_architecture_percentage <- data |>
   geom_col(position = "stack", color = "black", size = 0.1) +  # Add stacked column plot with black border
   labs(title = "Percentage of specific architecture per number of parameters", x = "Params", y = "Percentage") +  # Set plot titles and axis labels
   theme_minimal() +  # Apply minimal theme
-  scale_fill_brewer(palette = color_palette) +  # Set color palette for fill
-  scale_x_continuous(breaks = seq(0, 300, 5)) +  # Set x-axis breaks
-  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1))  # Adjust legend position and x-axis text
+  scale_fill_brewer(palette = "Set3") +  # Set color palette for fill
+  scale_x_continuous(breaks = seq(0, 235, 5)) +  # Set x-axis breaks
+  theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1)))  # Adjust legend position and x-axis text
 
 
 # Create plot showing Params vs Average with color gradient by Average
-plot_params_vs_average <- data |>  
+(plot_params_vs_average <- data |>  
   dplyr::filter(Params > 0) |>  # Filter data where Params > 0
   group_by(Params) |>  # Group data by Params
   summarise(Average = max(Average), TotalModelsPerSize = n()) |>  # Summarise data to get maximum Average and total models per size of Params
   ggplot(aes(x = Params, color = Average)) +  # Define aesthetics for the plot
   geom_segment(aes(xend = Params,  y = 0, yend = 100), size = 2) +  # Add line segments to represent the maximum Average
-  labs(title = "Params vs Average", x = "Params", y = "Average") +  # Set plot titles and axis labels
-  scale_x_continuous(breaks = seq(0, 300, 5)) +  # Set x-axis breaks
+  labs(title = "Parameters vs Average", x = "Parameters", y = "Average") +  # Set plot titles and axis labels
+  scale_x_continuous(breaks = seq(0, 140, 5), limits=c(0,140)) +  # Set x-axis breaks
   scale_y_continuous(breaks = seq(0, 100, 5)) +  # Set y-axis breaks
   theme_minimal() +  # Apply minimal theme
+  custom_theme +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom") +  # Adjust x-axis text and legend position
-  scale_color_continuous(type = "viridis")  # Set color gradient using viridis palette
+  scale_color_continuous(type = "viridis"))  # Set color gradient using viridis palette
 
-# Create plot showing Params vs Date vs Average
+
+
 (plot_params_vs_date_vs_average <- data |>  
   dplyr::filter(Params > 0) |>  # Filter data where Params > 0
   group_by(Params, created_at) |>  # Group data by Params and created_at
@@ -1104,21 +1382,34 @@ plot_params_vs_average <- data |>
   dplyr::filter(Average == max(Average) & !is.na(created_at)) |>  # Filter rows where Average is maximum and created_at is not NA
   distinct(Params, .keep_all = TRUE)  |>  # Keep only distinct rows
   ungroup() |>  # Ungroup data
-  ggplot(aes(x = Params, y = Average, fill = created_at)) +  # Define aesthetics for the plot
-  geom_col(color = "black", size = 0.1) +  # Add column plot with black border
-  labs(title = "Params vs Max Average", y = "Average", x = "Params") +  # Set plot titles and axis labels
+  ggplot(aes(x = Params, y = Average, fill = created_at)) +  # Use created_at directly for color fill
+  geom_col( width = 0.8) +  # Add column plot with black border
+  labs(
+    #title = "Model size (in billions of parameters) vs max average bentchmark score", 
+    y = "Max score", x = "Parameters") +  # Set plot titles and axis labels
   theme_minimal() +  # Apply minimal theme
-  scale_x_continuous(breaks = seq(0, 300, 5)) +  # Set x-axis breaks
-  theme(axis.text.x = element_text(angle = 90, hjust = 1), axis.title.y = element_text(margin =unit(c(0,0.3,0,0), "cm")), legend.position = "bottom") +  # Adjust x-axis text, y-axis title, and legend position
-  scale_fill_date(date_labels = "%Y-%m-%d", low = "purple", high = "lightgreen", guide = "legend"))  # Set fill color gradient using date labels
-
+  scale_x_continuous(breaks = seq(0, 130, 10), limits = c(0,130)) +  # Set x-axis breaks
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom", legend.text = element_text(angle = 90), legend.key.size = unit(1.5, "cm")) +
+    custom_theme +# Adjust x-axis text, y-axis title, and legend position
+  scale_fill_date(
+    low = brewer.pal(4, "Set2")[2], 
+    high = brewer.pal(4, "Set2")[1],
+    name = "Creation date",
+    labels = scales::date_format("%Y %b"),  # Format the legend labels as dates
+    breaks = scales::pretty_breaks(n = 4)  # Define how many breaks (dates) to show on the legend
+  ))
 # Combine plots into a single grid arrangement
-gridExtra::grid.arrange(plot_params_vs_architecture, plot_params_vs_architecture_percentage, plot_params_vs_date_vs_average, ncol = 1) -> plot_params_combined
+gridExtra::grid.arrange(plot_params_vs_architecture, plot_params_vs_date_vs_average, ncol = 1, heights = c(1.3, 1)) -> plot_params_combined
 
 # Save combined plot as a PDF
-ggsave("../out/params_combined.pdf", plot_params_combined, width = 20, height = 24)
+ggsave("params_combined.pdf", plot_params_combined, width = 20, height = 24)
+
+display.brewer.pal(n = 3, name = 'Set2')
+brewer.pal(n = 3, name = "Set2")
 
 
+
+## -----------------------------------------------------------------------------
 # Read the CSV file and create a directed graph
 graph <- read.csv("chat_models_and_base_models.csv") |> 
   select(-X) |> 
@@ -1140,13 +1431,15 @@ plot(graph,
 
 dev.off()  # Close the PDF device
 
+
+## -----------------------------------------------------------------------------
 # Pivot the data to long format and filter rows where value equals 1
 models_and_basemodels_all <- base.models |> 
   pivot_longer(cols = -model_name_for_query, names_to = "basemodel", values_to = "value") |> 
   subset(value == 1, select = -value)
 
 # Write the resulting data to a CSV file
-write.csv(models_and_basemodels_all, "../data/models_and_basemodels.csv")
+write.csv(models_and_basemodels_all, "models_and_basemodels.csv")
 
 # Create a directed graph from the data frame
 graph <- models_and_basemodels_all |> 
@@ -1171,6 +1464,8 @@ dev.off()  # Close the PDF device
 # Select the first few rows of the 'basemodel' column
 selected_models <- models_and_basemodels_all$basemodel |> head()
 
+
+## -----------------------------------------------------------------------------
 explore_graph_recursively <- function(graph, vertex, edges_collected = NULL) {
   # Get the neighbors of the current vertex (outgoing edges)
   neighbors <- neighbors(graph, vertex, mode = "out")
@@ -1199,6 +1494,8 @@ for (v in start_vertices) {
   all_edges_collected <- rbind(all_edges_collected, edges_collected)
 }
 
+
+## -----------------------------------------------------------------------------
 # Remove duplicate edges
 all_edges_collected <- unique(all_edges_collected)
 all_edges_collected$from |> c(all_edges_collected$to) |> unique() -> all_vertices
@@ -1223,6 +1520,8 @@ edge_data <- all_edges_collected
 edge_data$from_date <- vertex_data$date[match(edge_data$from, vertex_data$name)]
 edge_data$to_date <- vertex_data$date[match(edge_data$to, vertex_data$name)]  
 
+
+## -----------------------------------------------------------------------------
 # Plot the graph over time with segments representing edges and points representing vertices
 ggplot() +
   geom_segment(data = edge_data, aes(x = to_date, xend = from_date, y = to, yend = from), 
@@ -1245,8 +1544,10 @@ ggplot() +
   theme(legend.position = "bottom")
 
 # Save the plots as a PDF file
-ggsave("../out/graph_plot_over_time.pdf", width = 20, height = 40)
+ggsave("graph_plot_over_time.pdf", width = 20, height = 40)
 
+
+## -----------------------------------------------------------------------------
 # Use a layout algorithm to improve the visualization
 #vertex_scores$Average[is.na(vertex_scores$Average)] <- mean(vertex_scores$Average, na.rm = TRUE)
 layout <- layout_with_fr(sub_g)
@@ -1272,6 +1573,8 @@ plot(sub_g_reversed, layout = layout, vertex.color = vertex_colors, vertex.size 
      vertex.label = V(sub_g_reversed)$name, edge.arrow.size = 0.6)
 dev.off()  # Close the PDF device
 
+
+## -----------------------------------------------------------------------------
 # Get unique architecture names and sort them
 unique_architectures <- data$Architecture_new |> unique() |> sort()
 
@@ -1298,7 +1601,7 @@ change_in_popularity |>
   scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = c(0,0)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-ggsave("../out/change_in_popularity_compared_to_previous_week.pdf", width = 20, height = 10)
+ggsave("change_in_popularity_compared_to_previous_week.pdf", width = 20, height = 10)
 
 
 # Calculate change in popularity of models over time compared to the average model popularity
@@ -1316,9 +1619,11 @@ change_in_popularity |>
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   geom_smooth(aes(week_start,average_that_week), method = "loess", se = FALSE, color = "#464d49", size = 0.3)
 
-ggsave("../out/change_in_popularity_compared_to_average.pdf", width = 20, height = 10)
+ggsave("change_in_popularity_compared_to_average.pdf", width = 20, height = 10)
 
 
+
+## -----------------------------------------------------------------------------
 # Define a function to find increasing maximums in a dataframe
 find_increasing_maximums <- function(df) {
   max <- 0  # Initialize maximum value
@@ -1338,10 +1643,10 @@ process_data <- function(data, pattern, params = NULL, param_range = 0) {
   # Filter data based on parameters and conditions
   if(!is.null(params)) {
     data |> 
-      dplyr::filter(Params >= params & Params <= params + param_range & TypeString != "base merges and moerges" & str_detect(tags,"merge") %in% c(NA,FALSE) & Merged == FALSE) -> processed_data
+      dplyr::filter(Params >= params & Params <= params + param_range & TypeString != "base merges and moerges" & str_detect(tags,"merge") %in% c(NA,FALSE) & Merged == F) -> processed_data
   } else {
     data |> 
-      dplyr::filter(TypeString != "base merges and moerges" & str_detect(tags,"merge") %in% c(NA,FALSE) & Merged == FALSE) -> processed_data
+      dplyr::filter(TypeString != "base merges and moerges" & str_detect(tags,"merge") %in% c(NA,FALSE) & Merged == F) -> processed_data
   }
   
   # Process data
@@ -1370,6 +1675,8 @@ process_data <- function(data, pattern, params = NULL, param_range = 0) {
   return(processed_data)  # Return processed data
 }
 
+
+## -----------------------------------------------------------------------------
 # Filter data excluding "base merges and moerges" in TypeString and rows with "merge" in tags
 data |> 
   dplyr::filter(TypeString != "base merges and moerges") |> 
@@ -1383,7 +1690,7 @@ data$TypeString |> unique()
 # calculate total_models, total_days_model, and cumulative_models, and then filter Params equal to 7
 data |> 
   dplyr::filter(TypeString != "base merges and moerges") |> 
-  dplyr::filter(!str_detect(tags,"merge") %in% c(NA,FALSE) & Merged == F) |> 
+  dplyr::filter(Merged == F) |> 
   mutate(model_name_for_query = tolower(gsub(c("-","_"), "", model_name_for_query))) |>
   mutate(model_name_for_query = tolower(gsub(c("^.*?/"), "", model_name_for_query))) |>
   dplyr::filter(str_detect(model_name_for_query, "llama3") & !is.na(created_at)) |> 
@@ -1392,6 +1699,8 @@ data |>
   dplyr::filter(Params == 8)
   
 
+
+## -----------------------------------------------------------------------------
 # Process data for "llama3" model with 8 parameters
 process_data(data, "llama3", 8)
 
@@ -1426,11 +1735,58 @@ while (prev_len > 0) {
 
 
 
+
+## -----------------------------------------------------------------------------
+ data |> 
+      dplyr::filter(TypeString != "base merges and moerges" & str_detect(tags,"merge") %in% c(NA,FALSE) & Merged == F) |> 
+    select(Architecture, model_name_for_query, Params, Average, created_at, created_at_time) |>  # Select relevant columns
+    mutate(original_name = model_name_for_query) |>  # Create a copy of model_name_for_query
+    select(Architecture, model_name_for_query, Params, Average, created_at, created_at_time) |>  # Select relevant columns again
+    mutate(original_name = model_name_for_query) |>  # Create another copy of model_name_for_query
+    mutate(model_name_for_query = tolower(str_remove_all(model_name_for_query, "-"))) |>  # Convert model_name_for_query to lowercase and remove hyphens
+    mutate(model_name_for_query = (str_remove_all(model_name_for_query, "_"))) |>  # Remove underscores
+    mutate(model_name_for_query = (str_remove_all(model_name_for_query, "\\."))) |>  # Remove dots
+    mutate(model_name_for_query = tolower(gsub(c("^.*?/"), "", model_name_for_query))) |>  # Remove substrings before "/"
+    dplyr::filter(str_detect(model_name_for_query, "mistral7b") & !is.na(created_at)) |>  # Filter based on pattern and non-missing created_at values
+    arrange(created_at_time) |>  # Arrange data by created_at_time
+    mutate(total_models = n(), total_days_model = as.numeric(max(created_at) - min(created_at)), cumulative_models = cumsum(!is.na(model_name_for_query))) |>   # Calculate total models, total days model, and cumulative models 
+filter(created_at_time >= as.POSIXct("2023-12-11 13:18:44", tz = "UTC") & created_at_time <= as.POSIXct("2024-01-22 16:18:22", tz = "UTC") & Params == 7) |> write.csv("mistral7b.csv", row.names = FALSE)
+
+
+## -----------------------------------------------------------------------------
+read.csv("data/mistral_corrected.csv") |> rename(MistralVersion = BASE_VERSION) -> mistralCorrectedData
+data.no.mereges |> mutate(MistralVersion = 0) |> 
+left_join(mistralCorrectedData %>% select(original_name, MistralVersion), by = c("model_name_for_query"="original_name")) %>%
+  mutate(MistralVersion = if_else(!is.na(MistralVersion.y), MistralVersion.y, MistralVersion.x)) %>%
+  select(-MistralVersion.x, -MistralVersion.y) -> data.no.mereges
+
+mistralCorrectedData |> filter(MistralVersion == 2)
+data.no.mereges |> filter(MistralVersion == 2)
+
+
+## -----------------------------------------------------------------------------
 # Process each model
 llamma38b_data <- process_data(data.no.mereges, "llama3", 8)
 llamma38b_data |> mutate(total_improved_models = n()) -> llamma38b_data
 mistral7b_data <- process_data(data.no.mereges, "mistral7b", 7)
 mistral7b_data |> mutate(total_improved_models = n()) -> mistral7b_data
+mistral7bv2_data <- mistral7b_data |> filter(created_at >= as.Date("2023-12-11"))
+
+process_data(data.no.mereges |> filter(created_at_time >= as.POSIXct("2023-12-11 13:18:44", tz = "UTC") & created_at_time <= as.POSIXct("2024-01-22 16:18:22", tz = "UTC")) , "mistral7b", 7) |> write.csv("mistral7b.csv", row.names = FALSE)
+
+data.no.mereges |> filter(created_at_time != as.POSIXct("2023-12-11 13:18:44", tz = "UTC") & created_at_time < as.POSIXct("2024-01-22 16:18:22", tz = "UTC") & (MistralVersion %in% c(0,1))) -> data.no.mereges.MISTRAL1
+
+data.no.mereges |> filter(created_at_time == as.POSIXct("2023-12-11 13:18:44", tz = "UTC") |	created_at_time >= as.POSIXct("2024-01-22 16:18:22", tz = "UTC") | (MistralVersion ==2)) -> data.no.mereges.MISTRAL2
+
+mistral7b_data <- process_data(data.no.mereges.MISTRAL1, "mistral7b", 7)
+mistral7b_data |> mutate(total_improved_models = n()) -> mistral7b_data
+
+mistral7bv2_data <- process_data(data.no.mereges.MISTRAL2, "mistral7b", 7)
+mistral7bv2_data |> mutate(total_improved_models = n(), Model = "mistral7bv2") -> mistral7bv2_data
+
+
+data |> filter(model_name_for_query == "mistralai/Mistral-7B-Instruct-v0.2")
+
 mixtral8x7b_data <- process_data(data.no.mereges, "mixtral8x7b", 46)
 mixtral8x7b_data |> mutate(total_improved_models = n()) -> mixtral8x7b_data
 llamma27b_data <- process_data(data.no.mereges, "llama27b", 7)
@@ -1450,7 +1806,7 @@ llama270b_data |> mutate(total_improved_models = n()) -> llama270b_data
 process_data(data.no.mereges, "phi3medium") -> phi3medium_data
 phi3medium_data |> mutate(total_improved_models = n()) -> phi3medium_data
 # Combine all data
-combined_data <- bind_rows(llamma38b_data, mistral7b_data, mixtral8x7b_data, llamma27b_data, phi3mini_data, phi2_data, llama370b_data, llama30b_data, llama7b_data, llama270b_data, phi3medium_data)
+combined_data <- bind_rows(llamma38b_data, mistral7b_data, mistral7bv2_data, mixtral8x7b_data, llamma27b_data, phi3mini_data, phi2_data, llama370b_data, llama30b_data, llama7b_data, llama270b_data, phi3medium_data)
 
 # Calculate normalized average popularity and store the result in combined_data
 combined_data |> mutate(Average_norm_popular = round(Average / total_models,2)) -> combined_data
@@ -1459,21 +1815,192 @@ combined_data |> mutate(Average_norm_popular = round(Average / total_models,2)) 
 data.no.mereges |> dplyr::filter(str_detect(model_name_for_query, "meta"))
 
 
-# Plot the combined data: Model Comparison Over Time
+data.no.mereges |> filter(created_at_time == as.POSIXct("2023-12-11 13:18:44", tz = "UTC") |	created_at_time >= as.POSIXct("2024-01-22 16:18:22", tz = "UTC") & (MistralVersion %in% c(0,2))) |> filter(MistralVersion == 2)
 
+data.no.mereges.MISTRAL2 |> arrange(desc(Average))
+
+
+## -----------------------------------------------------------------------------
+library(viridis)
+colors <- viridis(11, option = "viridis")
+# Plot the combined data: Model Comparison Over Time
 ggplot(combined_data, aes(x = days_since_release, y = Average, color = Model)) + 
-  geom_line() +
-  geom_point() +
-  geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
+  geom_line(size = 1.1) +
+  geom_point(size = 1.3) +
+  #geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
   labs(title = "Model Comparison Over Time", x = "Days since release", y = "Average") + 
   theme_minimal() + 
   theme(legend.position = "bottom") + 
   scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 5)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  scale_color_discrete()# Adjust color scale if necessary
+  scale_color_brewer(palette = "Set3")
 
-ggsave("../out/model_comparison_over_time.pdf", width = 30, height = 10)
+combined_data <- combined_data |> 
+  mutate(
+    Models_fixed = case_when(
+      Model == "llama38" ~ "llama 3 8b",
+      Model == "mistral7b7" ~ "mistral 7b v0.1",
+      Model == "mistral7bv2" ~ "mistral 7b v0.2",
+      Model == "mixtral8x7b46" ~ "mixtral 8x7b",
+      Model == "llama27b7" ~ "llama 2 7b",
+      Model == "phi3mini" ~ "phi 3 mini",
+      Model == "phi2" ~ "phi 2",
+      Model == "llama370" ~ "llama 3 70b",
+      Model == "llama30" ~ "llama 1 30b",
+      Model == "llama7b7" ~ "llama 1 7b",
+      Model == "llama270" ~ "llama 2 70b",
+      Model == "phi3medium" ~ "phi 3 medium",
+      TRUE ~ Model  # If no match, keep the original name
+    )
+  )
 
+
+
+
+
+ggplot(combined_data, aes(x = days_since_release, y = Average / total_models, color = Models_fixed)) + 
+  # Border lines
+  geom_line(size = 1.2, aes(group = Models_fixed), color = "#5d6066") + 
+  # Main lines
+  geom_line(size = 0.9) +
+  # Points with borders and fill matching lines
+  geom_point(size = 1.5, shape = 21, aes(fill = Models_fixed), color = "#5d6066", stroke = 0.4) +
+  # Optional label repelling
+  # geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
+  labs(
+    title = "Model Comparison Over Time (Normalized by Total Number of Models)",
+    x = "Days since release",
+    y = "Improvement normalized"
+  ) + 
+  theme_minimal() + 
+  theme(legend.position = "bottom") + 
+  scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 5)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_brewer("Base model",palette = "Set3", direction = -1) +
+  scale_fill_brewer("Base model", palette = "Set3", direction = -1) +
+  custom_theme-> plot_model_comparison_over_time_norm
+
+ggplot(combined_data, aes(x = days_since_release, y = Average, color = Models_fixed)) + 
+  geom_line(size = 1.2) +
+  geom_point(size = 1.3) +
+  #geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
+  labs(title = "Model Comparison Over Time", x = "Days since release", y = "Average") + 
+  theme_minimal() + 
+  theme(legend.position = "bottom") + 
+  scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 20)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_brewer(palette = "Set3", direction = -1)
+
+
+# WITH BORDERS
+ggplot(combined_data, aes(x = days_since_release, y = Average, color = Models_fixed)) + 
+  # Border lines
+  geom_line(size = 2, aes(group = Models_fixed), color = "#5d6066") + 
+  # Main lines
+  geom_line(size = 0.9) + 
+  # Points with borders and fill matching lines
+  geom_point(size = 3, shape = 21, aes(fill = Models_fixed), color = "#5d6066", stroke = 0.4) +
+  # Optional label repelling
+  # geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
+  labs(
+    #title = "Model Comparison Over Time",
+       x = "", y = "Model improvement [%]") + 
+  theme_minimal() + 
+  custom_theme + 
+  theme(legend.position = "None", axis.text.x = element_blank()) + 
+  scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 20)) +
+  scale_color_brewer(palette = "Set3", direction = -1) +
+  scale_fill_brewer(palette = "Set3", direction = -1)  -> plot_model_comparison_over_time
+
+ggplot(combined_data, aes(x = days_since_release, y = log(Average/cumulative_models), color = Models_fixed)) + 
+   geom_line(size = 2, aes(group = Models_fixed), color = "#5d6066") + 
+  # Main lines
+  geom_line(size = 0.9) +
+  # Points with borders and fill matching lines
+  geom_point(size = 3, shape = 21, aes(fill = Models_fixed), color = "#5d6066", stroke = 0.4) +
+  # Optional label repelling
+  # geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
+  labs(
+    #title = "Model Comparison Over Time (Normalized by Total Number of Models and Logarithmized)",
+    x = "Days since release",
+    y = "Improvement normalized",
+    color = "Base model", 
+    fill = "Base model"
+  ) + 
+  theme_minimal() + 
+  theme(legend.position = "bottom") + 
+  scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 20)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_brewer(palette = "Set3", direction = -1) +
+  scale_fill_brewer(palette = "Set3", direction = -1) + custom_theme -> log_plot_model_comparison_over_time_norm
+
+
+gridExtra::grid.arrange(plot_model_comparison_over_time, log_plot_model_comparison_over_time_norm, ncol = 1, heights = c(1, 1.3)) 
+#WITHOUT BORDERS
+
+
+#ggsave("model_comparison_over_time.pdf", width = 20, height = 10)
+
+
+combined_data |> group_by(Models_fixed) |> summarise(min = min(Average), max = max(Average), .groups = "drop") |> arrange(desc(max - min)) |> ggplot(aes(x = Models_fixed, y = max - min)) + geom_col( fill = "#66C2A5", color = "black", size = 0.2) + theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + labs(
+  #title = "Improvement of each base models [%]", 
+  x = "Model", y = "Improvement") + custom_theme
+
+combined_data |> group_by(Models_fixed) |> select(Models_fixed, total_models) |> unique() |> ggplot(aes(x = Models_fixed, y = total_models)) + geom_col( fill = "#66C2A5", color = "black", size = 0.2) + theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + labs(
+  #title = "Total number of models for each base model", 
+  x = "Model", y = "Total number of models") + custom_theme + scale_y_continuous(n.breaks = 3)
+
+
+combined_data |> group_by(Models_fixed) |> reframe(min = min(Average_original), max = max(Average_original), improvement = (max/min)-1) |> ggplot(aes(x = Models_fixed, y = (max/min)-1)) + geom_col( fill = "#66C2A5", color = "black", size = 0.2) + theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + labs(title = "Improvement of each base model using formula (best/worst)-1", x = "Model", y = "Improvement")
+
+
+
+
+## -----------------------------------------------------------------------------
+# WITH BORDERS
+combined_data |> group_by(Models_fixed) |> summarise(base_model_average = min(Average_original)) |> inner_join(combined_data) |> 
+ggplot(aes(x = days_since_release, y = (Average_original / base_model_average) - 1, color = Models_fixed)) + 
+  # Border lines
+  geom_line(size = 1.2, aes(group = Models_fixed), color = "#5d6066") + 
+  # Main lines
+  geom_line(size = 0.9) + 
+  # Points with borders and fill matching lines
+  geom_point(size = 1.5, shape = 21, aes(fill = Models_fixed), color = "#5d6066", stroke = 0.4) +
+  # Optional label repelling
+  # geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
+  labs(title = "Model Comparison Over Time (model average / base model average) - 1", x = "Days since release", y = "Average") + 
+  theme_minimal() + 
+  theme(legend.position = "bottom") + 
+  scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 5)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_brewer(palette = "Set3", direction = -1) +
+  scale_fill_brewer(palette = "Set3", direction = -1)
+
+
+combined_data |> group_by(Models_fixed) |> summarise(base_model_average = min(Average_original)) |> inner_join(combined_data) |> 
+ggplot(aes(x = days_since_release, y = ((Average_original / base_model_average) - 1) / total_models, color = Models_fixed)) + 
+  # Border lines
+  geom_line(size = 1.2, aes(group = Models_fixed), color = "#5d6066") + 
+  # Main lines
+  geom_line(size = 0.9) +
+  # Points with borders and fill matching lines
+  geom_point(size = 1.5, shape = 21, aes(fill = Models_fixed), color = "#5d6066", stroke = 0.4) +
+  # Optional label repelling
+  # geom_label_repel(aes(label = original_name), max.overlaps = 50, size = 2) +
+  labs(
+    title = "Model Comparison Over Time (Normalized by Total # of Models) (model average / base model average) - 1",
+    x = "Days since release",
+    y = "Improvement divided by total # of models"
+  ) + 
+  theme_minimal() + 
+  theme(legend.position = "bottom") + 
+  scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 5)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_brewer(palette = "Set3", direction = -1) +
+  scale_fill_brewer(palette = "Set3", direction = -1)
+
+
+## -----------------------------------------------------------------------------
 # Plot the combined data: Model Comparison Over Time Normalized by Total Number of Models
 ggplot(combined_data, aes(x = days_since_release, y = Average_norm_popular, color = Model)) + 
   geom_line() +
@@ -1485,11 +2012,11 @@ ggplot(combined_data, aes(x = days_since_release, y = Average_norm_popular, colo
   scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 5)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Adjust color scale if necessary
 
-ggsave("../out/model_comparison_over_time_normalized.pdf", width = 15, height = 10)
+ggsave("model_comparison_over_time_normalized.pdf", width = 15, height = 10)
 
 # Plot the combined data: Model Popularity Index vs. Average
-ggplot(combined_data |>  mutate(Model_popularity_index = cumulative_models / (days_since_release + 1)), aes(x = Model_popularity_index, y = Average, color = Model)) + 
-  geom_point() + 
+ggplot(combined_data |>  mutate(Model_popularity_index = cumulative_models / (days_since_release+1)), aes(x = Model_popularity_index, y = Average, color = Model)) +
+  geom_point() +
   #geom_label_repel(aes(label = original_name), max.overlaps = 20, size = 3) +
   labs(title = "Model Popularity Index vs. Average", x = "Model Popularity Index", y = "Average") +
   theme_minimal() +
@@ -1497,6 +2024,8 @@ ggplot(combined_data |>  mutate(Model_popularity_index = cumulative_models / (da
 
 
 
+
+## -----------------------------------------------------------------------------
 # Compute the popularity index and average by popularity index for each model
 combined_data  |> 
   mutate(popularity_index = total_models / total_days_model, Average_by_popularity_index = Average / popularity_index) -> combined_data
@@ -1543,9 +2072,11 @@ combined_data |>
   scale_x_continuous(breaks = seq(0, max(combined_data$days_since_release), by = 5))
 
 # Save the plot as a PDF
-ggsave("../out/model_comparison_over_time_normalized_by_popularity_index.pdf", width = 15, height = 10)
+ggsave("model_comparison_over_time_normalized_by_popularity_index.pdf", width = 15, height = 10)
 
 
+
+## -----------------------------------------------------------------------------
 commit.data.long |> select(authors, first_commit) |> arrange(first_commit) |> distinct(authors, .keep_all = TRUE) |> group_by(first_commit) |> summarise(new_authors = n()) |> mutate(total_authors = cumsum(new_authors)) |> dplyr::filter(first_commit >= "2023-01-01") -> prediction.data
 
 # Split data to train and test randomly
@@ -1610,6 +2141,12 @@ prediction.data |> ggplot(aes(first_commit, total_authors)) + geom_line() + geom
 
 predict(model_gam, newdata = test.data) |> round(0) -> predictions_gam
 
+predict(model_gam, newdata = data.frame(first_commit = as.Date(seq.Date(from = as.Date("2024-03-08"), to = as.Date("2025-06-30"), by = "day")))) |> round(0) -> predictions_gam
+
+predictions_gam_df <- data.frame(first_commit = seq.Date(from = as.Date("2024-03-08"), to = as.Date("2025-06-30"), by = "day")) |> mutate(total_authors = predict(model_gam, newdata = data.frame(first_commit = first_commit), type = "predicted") |>  round(0))
+
+prediction.data |> select(first_commit, total_authors) |> mutate(type = "observed") |> bind_rows(predictions_gam_df |> mutate(type = "predicted")) |> ggplot(aes(x = first_commit, y = total_authors, color = type)) + geom_line(linewidth = 1.2) + labs(title = "Total Users Over Time", x = "Month", y = "Total Users") + theme_minimal() + theme(legend.position = "bottom") + scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = c(0,0)) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
 # Plot the predicted number of users
 
 ggplot(prediction.data, aes(x = first_commit, y = total_authors)) +
@@ -1622,6 +2159,28 @@ ggplot(prediction.data, aes(x = first_commit, y = total_authors)) +
   scale_x_date(date_breaks = "1 month", date_labels = "%b %Y", expand = c(0,0)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+
+
+
+all_dates <- data.frame(created_at = seq.Date( from = min(data$created_at, na.rm = T), to = max(data$created_at, na.rm = T), by = "day" ))
+
+data |> select(model_name_for_query, created_at) |> group_by(created_at) |> summarise(total_models = n()) |> right_join(all_dates, by = "created_at") %>% replace_na(list(total_models = 0)) |> arrange(created_at) |> mutate(cumulative_models = cumsum(total_models)) -> models.per.date
+
+prediction.data |> inner_join(models.per.date, by = c("first_commit" = "created_at")) -> prediction.data
+
+mgcv::gam(total_authors ~ s(first_commit |> as.numeric()) + s(cumulative_models), data = train.data) -> model_gam
+
+# Predict the number of users for each date
+predict(model_gam, newdata = data.frame(first_commit = as.Date(seq.Date(from = as.Date("2024-03-08"), to = as.Date("2025-06-30"), by = "day")), cumulative_models = seq(from = 4000, by = 30, length.out = 480))) |> round(0) -> predictions_gam
+
+(predictions_gam_df <- data.frame( first_commit = seq.Date(from = as.Date("2024-03-08"), to = as.Date("2025-06-30"), by = "day") ) %>% mutate( cumulative_models = seq(from = 4000, by = 100, length.out = n()), total_authors = round(predict(model_gam, newdata = data.frame(first_commit = first_commit, cumulative_models = cumulative_models), type = "response"))) )
+
+
+prediction.data |> rename(new_models = total_models, cumulative_authors = total_authors) |> select(-first_commit) |> cor() |> ggcorrplot::ggcorrplot(lab = TRUE, type = "lower", outline.color = "black", colors = c("blue", "white", "red"), title = "Correlation Matrix of Variables")
+  
+
+
+## -----------------------------------------------------------------------------
 data |> select(model_name_for_query, Average, ARC, created_at, Architecture_new, Params, TypeString) |> 
   arrange(desc(ARC)) |> head(20)
 
@@ -1634,6 +2193,62 @@ data |> select(model_name_for_query, TruthfulQA, Average, created_at, Architectu
 data |> select(model_name_for_query, Average,Winogrande, created_at, Architecture_new, Params, TypeString) |>
   arrange(desc(Winogrande)) |> head(20)
 
-data |> write.csv("../data/data.csv", row.names = FALSE)
-author.activity |> write.csv("../data/author_activity.csv", row.names = FALSE)
-combined_data |> write.csv("../data/data_for_model_evolution.csv", row.names = FALSE)
+
+## -----------------------------------------------------------------------------
+data |> 
+  select(Params, downloads) |> 
+  filter(!is.na(Params) & !is.na(downloads) & Params > 0) |> 
+  group_by(Params) |> 
+  reframe(total = sum(downloads)) |> 
+  ggplot(aes(x = Params, y = total)) + 
+  
+  # Use geom_col for bar plot with identity stat
+  geom_col(show.legend = FALSE, width = 0.8, fill =  brewer.pal(4, "Set2")[1], color = "black", size = 0.2) + 
+  
+  # Add title and labels
+  labs(
+    title = "Total Downloads by Model Size",
+    x = "Parameters",
+    y = "Total Downloads"
+  ) +
+  
+  # Customize theme for a cleaner look
+  theme_minimal() +
+  
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, size = 10),
+    plot.title = element_text(size = 14)
+  ) +
+  
+  # Optionally adjust y-axis limits if needed
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  scale_x_continuous(limits = c(0,150), breaks = seq(0,150,5))
+
+
+
+
+data |> 
+  select(Params, downloads) |> 
+  filter(!is.na(Params) & !is.na(downloads) & Params > 0) |> 
+  group_by(Params) |> 
+  reframe(total = sum(downloads)) |> 
+  filter(Params <= 15) |> 
+  pull(total) |> sum() -> total_downloads_upto15
+
+data |> 
+  select(Params, downloads) |> 
+  filter(!is.na(Params) & !is.na(downloads) & Params > 0) |> 
+  group_by(Params) |> 
+  reframe(total = sum(downloads)) |> 
+  filter(Params > 15) |> 
+  pull(total) |> sum() -> total_downloads_over15
+
+total_downloads <- total_downloads_upto15 + total_downloads_over15
+
+total_downloads_upto15 / total_downloads
+
+
+## -----------------------------------------------------------------------------
+data.new <- read_delim("data/newData/leaderboard_deduped.csv", 
+     delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
